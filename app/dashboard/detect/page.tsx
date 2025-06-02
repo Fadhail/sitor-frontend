@@ -132,6 +132,9 @@ export default function DetectPage() {
     if (!video || !canvas) return
     const width = video.videoWidth;
     const height = video.videoHeight;
+    // Set canvas DOM attributes to match video size
+    if (canvas.width !== width) canvas.width = width;
+    if (canvas.height !== height) canvas.height = height;
     const __faceApiDimsObj: { width: number; height: number } = { width, height };
     // @ts-expect-error face-api.js is loaded globally from CDN
     faceapi.matchDimensions(canvas, __faceApiDimsObj)

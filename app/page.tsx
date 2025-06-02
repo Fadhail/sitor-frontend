@@ -36,11 +36,6 @@ export default function Home() {
                   <Link href="/register">
                     <Button className="w-full">Get Started</Button>
                   </Link>
-                  <Link href="/detect">
-                    <Button variant="outline" className="w-full">
-                      Try Demo <ArrowRight className="ml-2 h-4 w-4" />
-                    </Button>
-                  </Link>
                 </div>
               </div>
               <div className="mx-auto aspect-video overflow-hidden rounded-xl border bg-muted lg:order-last">
