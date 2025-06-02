@@ -26,6 +26,7 @@ export default function DetectPage() {
   const [error, setError] = useState<string | null>(null)
   const [loadingProgress, setLoadingProgress] = useState(0)
   const [faceApiLoaded, setFaceApiLoaded] = useState(false)
+  const [isCameraOn, setIsCameraOn] = useState(false)
 
   // Load face-api.js
   useEffect(() => {
@@ -84,10 +85,12 @@ export default function DetectPage() {
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream
+        setIsCameraOn(true)
       }
     } catch (err) {
       console.error("Error accessing camera:", err)
       setError("Unable to access camera. Please ensure you've granted camera permissions.")
+      setIsCameraOn(false)
     }
   }
 
@@ -100,6 +103,7 @@ export default function DetectPage() {
       videoRef.current.srcObject = null
     }
 
+    setIsCameraOn(false)
     setIsDetecting(false)
   }
 
@@ -126,68 +130,68 @@ export default function DetectPage() {
     const video = videoRef.current
     const canvas = canvasRef.current
     if (!video || !canvas) return
-    // --- Clean declaration to avoid hidden character issues ---
     const width = video.videoWidth;
     const height = video.videoHeight;
     const __faceApiDimsObj: { width: number; height: number } = { width, height };
-    // Match canvas size to video
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (faceapi as any).matchDimensions(canvas, __faceApiDimsObj)
+    // @ts-expect-error face-api.js is loaded globally from CDN
+    faceapi.matchDimensions(canvas, __faceApiDimsObj)
 
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const detections = await (faceapi as any)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .detectAllFaces(video, new (faceapi as any).TinyFaceDetectorOptions())
+      const detections = await faceapi
+        // @ts-expect-error face-api.js is loaded globally from CDN
+        .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
         .withFaceLandmarks()
         .withFaceExpressions()
 
-      // Clear canvas and draw new detections
       const ctx = canvas.getContext("2d")
       if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-      // Resize detections to match display size
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const resizedDetections = (faceapi as any).resizeResults(detections, __faceApiDimsObj)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ;(faceapi as any).draw.drawDetections(canvas, resizedDetections)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ;(faceapi as any).draw.drawFaceExpressions(canvas, resizedDetections)
+      // @ts-expect-error face-api.js is loaded globally from CDN
+      const resizedDetections = faceapi.resizeResults(detections, __faceApiDimsObj)
+      // @ts-expect-error face-api.js is loaded globally from CDN
+      faceapi.draw.drawDetections(canvas, resizedDetections)
+      // @ts-expect-error face-api.js is loaded globally from CDN
+      faceapi.draw.drawFaceLandmarks(canvas, resizedDetections)
+      // @ts-expect-error face-api.js is loaded globally from CDN
+      faceapi.draw.drawFaceExpressions(canvas, resizedDetections)
 
-      // Update detection results
+      // Show dominant emotion as overlay text (if detected)
       if (resizedDetections.length > 0) {
         const expressions = resizedDetections[0].expressions
-
-        // Convert expressions object to array of {expression, probability}
         const results = Object.entries(expressions)
           .map(([expression, probability]) => ({
             expression,
             probability: Number(probability),
           }))
           .sort((a, b) => b.probability - a.probability)
-
         setDetectionResults(results)
 
-        // Save detection to "history" in localStorage
+        // Overlay dominant emotion text
+        if (ctx) {
+          ctx.save()
+          ctx.font = 'bold 24px Arial'
+          ctx.fillStyle = 'rgba(0,0,0,0.7)'
+          ctx.fillRect(10, 10, 260, 40)
+          ctx.fillStyle = '#fff'
+          ctx.fillText(`Dominant: ${results[0].expression} (${Math.round(results[0].probability * 100)}%)`, 20, 40)
+          ctx.restore()
+        }
+
+        // Save detection to history
         const timestamp = new Date().toISOString()
         const dominantEmotion = results[0].expression
-
         const history = JSON.parse(localStorage.getItem("emotionHistory") || "[]")
         history.push({
           timestamp,
           emotion: dominantEmotion,
           probability: results[0].probability,
         })
-
-        // Keep only last 50 detections
         if (history.length > 50) {
           history.shift()
         }
-
         localStorage.setItem("emotionHistory", JSON.stringify(history))
       }
 
-      // Continue detection if still in detecting mode
       if (isDetecting) {
         requestAnimationFrame(detectEmotions)
       }
@@ -281,7 +285,7 @@ export default function DetectPage() {
                   />
                   <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full" />
                   {/* Fix: Only show overlay if camera is off and models are loaded */}
-                  {!videoRef.current || !videoRef.current.srcObject ? (
+                  {!isCameraOn ? (
                     isModelLoaded && (
                       <div className="absolute inset-0 flex flex-col items-center justify-center">
                         <Camera className="h-12 w-12 text-muted-foreground mb-2" />
@@ -293,7 +297,7 @@ export default function DetectPage() {
               </div>
             </CardContent>
             <CardFooter className="flex justify-center gap-4 flex-wrap">
-              {!videoRef.current?.srcObject ? (
+              {!isCameraOn ? (
                 <Button onClick={startVideo} disabled={!isModelLoaded}>
                   Start Camera
                 </Button>
@@ -304,7 +308,7 @@ export default function DetectPage() {
               )}
 
               {!isDetecting ? (
-                <Button onClick={startDetection} disabled={!isModelLoaded || !videoRef.current?.srcObject}>
+                <Button onClick={startDetection} disabled={!isModelLoaded || !isCameraOn}>
                   Start Detection
                 </Button>
               ) : (
@@ -313,7 +317,7 @@ export default function DetectPage() {
                 </Button>
               )}
 
-              <Button onClick={captureScreenshot} variant="outline" disabled={!videoRef.current?.srcObject}>
+              <Button onClick={captureScreenshot} variant="outline" disabled={!isCameraOn}>
                 <Download className="mr-2 h-4 w-4" />
                 Save Screenshot
               </Button>
