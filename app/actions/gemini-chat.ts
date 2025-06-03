@@ -6,7 +6,7 @@ import { generateText } from "ai"
 export async function getEmotionRecommendation(emotion: string, context?: string) {
   try {
     const { text } = await generateText({
-      model: google("gemini-1.5-flash"),
+      model: google("gemini-2.0-flash"),
       prompt: `You are SITOR, an empathetic AI assistant that provides helpful recommendations based on detected emotions.
 
 Current detected emotion: ${emotion}

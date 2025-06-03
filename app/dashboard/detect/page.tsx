@@ -35,6 +35,14 @@ export default function DetectPage() {
     }
   }, [faceApiLoaded])
 
+  // Pastikan deteksi berjalan saat isDetecting berubah ke true
+  useEffect(() => {
+    if (isDetecting) {
+      detectEmotions()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDetecting])
+
   const loadModels = async () => {
     try {
       const faceapi = (window as FaceApiWindow).faceapi
@@ -125,14 +133,20 @@ export default function DetectPage() {
     if (!isDetecting) return
 
     const faceapi = (window as FaceApiWindow).faceapi
-    if (!faceapi || typeof faceapi !== 'object' || !videoRef.current || !canvasRef.current) return
+    console.log('[DEBUG] detectEmotions called, isDetecting:', isDetecting, 'faceapi:', faceapi)
+    if (!faceapi || typeof faceapi !== 'object' || !videoRef.current || !canvasRef.current) {
+      console.warn('[DEBUG] faceapi not loaded or refs missing')
+      return
+    }
 
     const video = videoRef.current
     const canvas = canvasRef.current
-    if (!video || !canvas) return
+    if (!video || !canvas) {
+      console.warn('[DEBUG] video or canvas ref missing')
+      return
+    }
     const width = video.videoWidth;
     const height = video.videoHeight;
-    // Set canvas DOM attributes to match video size
     if (canvas.width !== width) canvas.width = width;
     if (canvas.height !== height) canvas.height = height;
     const __faceApiDimsObj: { width: number; height: number } = { width, height };
@@ -140,11 +154,13 @@ export default function DetectPage() {
     faceapi.matchDimensions(canvas, __faceApiDimsObj)
 
     try {
+      console.log('[DEBUG] Running faceapi detection...')
       const detections = await faceapi
         // @ts-expect-error face-api.js is loaded globally from CDN
         .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
         .withFaceLandmarks()
         .withFaceExpressions()
+      console.log('[DEBUG] Detections:', detections)
 
       const ctx = canvas.getContext("2d")
       if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height)
@@ -153,12 +169,22 @@ export default function DetectPage() {
       const resizedDetections = faceapi.resizeResults(detections, __faceApiDimsObj)
       // @ts-expect-error face-api.js is loaded globally from CDN
       faceapi.draw.drawDetections(canvas, resizedDetections)
-      // @ts-expect-error face-api.js is loaded globally from CDN
-      faceapi.draw.drawFaceLandmarks(canvas, resizedDetections)
+      console.log('[DEBUG] resizedDetections:', resizedDetections)
+      if (resizedDetections.length > 0) {
+        console.log('[DEBUG] resizedDetections[0].landmarks:', resizedDetections[0].landmarks)
+        // Paksa gambar landmark meskipun tidak ada property landmarks
+        // @ts-expect-error face-api.js is loaded globally from CDN
+        faceapi.draw.drawFaceLandmarks(canvas, resizedDetections)
+        if (!resizedDetections[0].landmarks) {
+          console.warn('[DEBUG] Landmark property tidak ditemukan pada hasil deteksi!')
+        }
+      } else {
+        console.warn('[DEBUG] Tidak ada hasil deteksi wajah!')
+      }
       // @ts-expect-error face-api.js is loaded globally from CDN
       faceapi.draw.drawFaceExpressions(canvas, resizedDetections)
+      console.log('[DEBUG] resizedDetections:', resizedDetections)
 
-      // Show dominant emotion as overlay text (if detected)
       if (resizedDetections.length > 0) {
         const expressions = resizedDetections[0].expressions
         const results = Object.entries(expressions)
@@ -168,6 +194,7 @@ export default function DetectPage() {
           }))
           .sort((a, b) => b.probability - a.probability)
         setDetectionResults(results)
+        console.log('[DEBUG] detectionResults:', results)
 
         // Overlay dominant emotion text
         if (ctx) {
@@ -199,7 +226,7 @@ export default function DetectPage() {
         requestAnimationFrame(detectEmotions)
       }
     } catch (err) {
-      console.error("Error during detection:", err)
+      console.error('[DEBUG] Error during detection:', err)
       setError("An error occurred during emotion detection.")
       setIsDetecting(false)
     }
