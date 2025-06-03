@@ -36,7 +36,12 @@ export function EmotionChat({ currentEmotion, emotionHistory = [], isOpen, onClo
   // Auto-scroll to bottom when new messages are added
   useEffect(() => {
     if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight
+      const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement
+      if (scrollContainer) {
+        setTimeout(() => {
+          scrollContainer.scrollTop = scrollContainer.scrollHeight
+        }, 100)
+      }
     }
   }, [messages])
 
@@ -124,7 +129,7 @@ export function EmotionChat({ currentEmotion, emotionHistory = [], isOpen, onClo
   if (!isOpen) return null
 
   return (
-    <Card className="h-[500px] flex flex-col">
+    <Card className="fixed bottom-4 right-4 w-[450px] max-w-[90vw] h-[600px] max-h-[85vh] flex flex-col shadow-lg z-50 overflow-hidden">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -150,82 +155,82 @@ export function EmotionChat({ currentEmotion, emotionHistory = [], isOpen, onClo
         </CardDescription>
       </CardHeader>
 
-      <CardContent className="flex-1 flex flex-col p-0">
+      <CardContent className="flex-1 flex flex-col p-0 overflow-hidden">
         {error && (
           <div className="mx-4 mb-2 p-2 bg-destructive/10 border border-destructive/20 rounded-md">
             <p className="text-sm text-destructive">{error}</p>
           </div>
         )}
 
-        <ScrollArea className="flex-1 px-4" ref={scrollAreaRef}>
-          <div className="space-y-4 pb-4">
-            {messages.length === 0 && (
-              <div className="text-center text-muted-foreground py-8">
-                <Bot className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                <p>Hi! I&apos;m SITOR, your emotional wellness assistant.</p>
-                <p className="text-sm mt-1">I&apos;ll provide recommendations based on your detected emotions.</p>
-              </div>
-            )}
+        <div className="flex-1 overflow-hidden">
+          <ScrollArea className="h-full px-4" ref={scrollAreaRef}>
+            <div className="space-y-4 py-4 min-h-0">
+              {messages.length === 0 && (
+                <div className="text-center text-muted-foreground py-8">
+                  <Bot className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                  <p>Hi! I&apos;m SITOR, your emotional wellness assistant.</p>
+                  <p className="text-sm mt-1">I&apos;ll provide recommendations based on your detected emotions.</p>
+                </div>
+              )}
 
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex gap-3 ${message.sender === "user" ? "justify-end" : "justify-start"}`}
-              >
-                {message.sender === "ai" && (
+              {messages.map((message) => (
+                <div
+                  key={message.id}
+                  className={`flex gap-3 ${message.sender === "user" ? "justify-end" : "justify-start"}`}
+                >
+                  {message.sender === "ai" && (
+                    <Avatar className="h-8 w-8 mt-1">
+                      <AvatarFallback className="bg-primary text-primary-foreground">
+                        <Bot className="h-4 w-4" />
+                      </AvatarFallback>
+                    </Avatar>
+                  )}
+
+                  <div className={`max-w-[80%] ${message.sender === "user" ? "order-1" : ""}`}>
+                    <div
+                      className={`rounded-lg px-3 py-2 text-sm ${message.sender === "user" ? "bg-primary text-primary-foreground ml-auto" : "bg-muted"
+                        }`}
+                    >
+                      {message.content}
+                    </div>
+                    <div
+                      className={`text-xs text-muted-foreground mt-1 ${message.sender === "user" ? "text-right" : "text-left"
+                        }`}
+                    >
+                      {formatTime(message.timestamp)}
+                    </div>
+                  </div>
+
+                  {message.sender === "user" && (
+                    <Avatar className="h-8 w-8 mt-1">
+                      <AvatarFallback>
+                        <User className="h-4 w-4" />
+                      </AvatarFallback>
+                    </Avatar>
+                  )}
+                </div>
+              ))}
+
+              {isLoading && (
+                <div className="flex gap-3 justify-start">
                   <Avatar className="h-8 w-8 mt-1">
                     <AvatarFallback className="bg-primary text-primary-foreground">
                       <Bot className="h-4 w-4" />
                     </AvatarFallback>
                   </Avatar>
-                )}
-
-                <div className={`max-w-[80%] ${message.sender === "user" ? "order-1" : ""}`}>
-                  <div
-                    className={`rounded-lg px-3 py-2 text-sm ${
-                      message.sender === "user" ? "bg-primary text-primary-foreground ml-auto" : "bg-muted"
-                    }`}
-                  >
-                    {message.content}
-                  </div>
-                  <div
-                    className={`text-xs text-muted-foreground mt-1 ${
-                      message.sender === "user" ? "text-right" : "text-left"
-                    }`}
-                  >
-                    {formatTime(message.timestamp)}
+                  <div className="bg-muted rounded-lg px-3 py-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>SITOR is thinking...</span>
+                    </div>
                   </div>
                 </div>
+              )}
+            </div>
+          </ScrollArea>
+        </div>
 
-                {message.sender === "user" && (
-                  <Avatar className="h-8 w-8 mt-1">
-                    <AvatarFallback>
-                      <User className="h-4 w-4" />
-                    </AvatarFallback>
-                  </Avatar>
-                )}
-              </div>
-            ))}
-
-            {isLoading && (
-              <div className="flex gap-3 justify-start">
-                <Avatar className="h-8 w-8 mt-1">
-                  <AvatarFallback className="bg-primary text-primary-foreground">
-                    <Bot className="h-4 w-4" />
-                  </AvatarFallback>
-                </Avatar>
-                <div className="bg-muted rounded-lg px-3 py-2 text-sm">
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>SITOR is thinking...</span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </ScrollArea>
-
-        <div className="border-t p-4">
+        <div className="border-t p-4 bg-background">
           <div className="flex gap-2">
             <Input
               placeholder="Ask me anything about your emotions..."
