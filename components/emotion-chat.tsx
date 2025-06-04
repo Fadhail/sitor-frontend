@@ -29,9 +29,10 @@ export function EmotionChat({ currentEmotion, emotionHistory = [], isOpen, onClo
   const [messages, setMessages] = useState<Message[]>([])
   const [inputMessage, setInputMessage] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const [hasShownRecommendation, setHasShownRecommendation] = useState(false)
+  const [lastProcessedEmotion, setLastProcessedEmotion] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
+  const isProcessingRef = useRef(false)
 
   // Auto-scroll to bottom when new messages are added
   useEffect(() => {
@@ -47,36 +48,50 @@ export function EmotionChat({ currentEmotion, emotionHistory = [], isOpen, onClo
 
   // Show initial recommendation when emotion is detected
   useEffect(() => {
-    if (currentEmotion && !hasShownRecommendation && isOpen) {
+    if (
+      currentEmotion && 
+      isOpen && 
+      currentEmotion !== lastProcessedEmotion && 
+      !isProcessingRef.current
+    ) {
+      isProcessingRef.current = true
+      setLastProcessedEmotion(currentEmotion)
       handleEmotionRecommendation(currentEmotion)
-      setHasShownRecommendation(true)
     }
-  }, [currentEmotion, hasShownRecommendation, isOpen])
+  }, [currentEmotion, isOpen, lastProcessedEmotion])
 
-  // Reset recommendation flag when emotion changes
+  // Reset processing flag when chat is closed
   useEffect(() => {
-    setHasShownRecommendation(false)
-  }, [currentEmotion])
+    if (!isOpen) {
+      isProcessingRef.current = false
+    }
+  }, [isOpen])
 
   const handleEmotionRecommendation = async (emotion: string) => {
     setIsLoading(true)
     setError(null)
 
-    const result = await getEmotionRecommendation(emotion)
+    try {
+      const result = await getEmotionRecommendation(emotion)
 
-    if (result.success) {
-      const aiMessage: Message = {
-        id: Date.now().toString(),
-        content: result.recommendation,
-        sender: "ai",
-        timestamp: new Date(),
+      if (result.success) {
+        const aiMessage: Message = {
+          id: Date.now().toString(),
+          content: result.recommendation,
+          sender: "ai",
+          timestamp: new Date(),
+        }
+        setMessages((prev) => [...prev, aiMessage])
+      } else {
+        setError("Unable to get recommendation. Please check your API configuration.")
       }
-      setMessages((prev) => [...prev, aiMessage])
-    } else {
-      setError("Unable to get recommendation. Please check your API configuration.")
+    } catch (err) {
+      console.error("Error getting emotion recommendation:", err)
+      setError("An error occurred while getting recommendation.")
+    } finally {
+      setIsLoading(false)
+      isProcessingRef.current = false
     }
-
-    setIsLoading(false)
   }
 
   const handleSendMessage = async () => {
