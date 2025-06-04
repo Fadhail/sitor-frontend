@@ -14,7 +14,6 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "SITOR",
-  description: "SITOR - Emotion Detection and Analysis Platform",
 };
 
 export default function RootLayout({
