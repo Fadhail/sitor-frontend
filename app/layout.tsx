@@ -14,6 +14,29 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "SITOR",
+  description: "SITOR - Emotion Detection and Analysis Platform",
+  icons: {
+    icon: [
+      {
+        url: "/sitor.png",
+        sizes: "32x32",
+        type: "image/png",
+      },
+      {
+        url: "/sitor.png",
+        sizes: "16x16",
+        type: "image/png",
+      },
+    ],
+    shortcut: "/sitor.png",
+    apple: [
+      {
+        url: "/sitor.png",
+        sizes: "180x180",
+        type: "image/png",
+      },
+    ],
+  },
 };
 
 export default function RootLayout({
