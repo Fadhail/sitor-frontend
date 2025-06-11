@@ -6,7 +6,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { BarChart3, Home, LogOut, Menu, SmilePlus, User, X } from "lucide-react"
+import { BarChart3, Home, LogOut, Menu, SmilePlus, User, Users2Icon, X } from "lucide-react"
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
@@ -56,6 +56,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <Button variant="ghost" className="w-full justify-start">
                   <Home className="mr-2 h-4 w-4" />
                   Home
+                </Button>
+              </Link>
+              <Link href="/dashboard/group">
+                <Button variant="ghost" className="w-full justify-start">
+                  <Users2Icon className="mr-2 h-4 w-4" />
+                  Groups
                 </Button>
               </Link>
               <Link href="/dashboard/detect">
