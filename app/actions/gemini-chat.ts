@@ -7,18 +7,22 @@ export async function getEmotionRecommendation(emotion: string, context?: string
   try {
     const { text } = await generateText({
       model: google("gemini-2.0-flash"),
-      prompt: `You are SITOR, an empathetic AI assistant that provides helpful recommendations based on detected emotions.
+      prompt: `You are SITOR, an empathetic AI assistant specialized in emotion detection and mental wellness support.
 
 Current detected emotion: ${emotion}
-${context ? `Additional context: ${context}` : ""}
+${context ? `Additional context: ${context}` : ""} 
 
-Please provide a supportive and actionable recommendation for someone experiencing this emotion. Keep your response:
-- Warm and understanding
-- Practical and actionable
-- Between 2-4 sentences
-- Focused on immediate steps they can take
+As SITOR, provide a supportive and empathetic initial recommendation to help the user with their current emotional state. 
 
-Respond as if you're having a caring conversation with the user.`,
+Guidelines:
+- Use a warm, caring tone
+- Provide practical, actionable advice
+- Keep the response concise but meaningful
+- Acknowledge their emotions as valid
+- Respond in Indonesian if the context suggests the user prefers Indonesian, otherwise use English
+- Introduce yourself briefly as SITOR in the first interaction
+
+Respond as SITOR:`,
     })
 
     return { success: true, recommendation: text }
@@ -27,30 +31,49 @@ Respond as if you're having a caring conversation with the user.`,
     return {
       success: false,
       recommendation:
-        "I'm having trouble connecting right now, but remember that all emotions are valid and temporary. Take a deep breath and be kind to yourself.",
+        "Saya SITOR, dan saya di sini untuk membantu Anda. Meskipun sedang ada masalah koneksi, ingatlah bahwa semua emosi itu valid dan bersifat sementara. Tarik napas dalam-dalam dan bersikap baik pada diri sendiri.",
     }
   }
 }
 
-export async function chatWithGemini(message: string, emotionHistory: string[]) {
+export async function chatWithGemini(
+  message: string,
+  emotionHistory: string[],
+  chatHistory?: Array<{ content: string, sender: "user" | "ai" }>,
+  currentEmotion?: string
+) {
   try {
     const recentEmotions = emotionHistory.slice(-5).join(", ")
 
+    // Build conversation context
+    let conversationContext = ""
+    if (chatHistory && chatHistory.length > 0) {
+      const recentChat = chatHistory.slice(-10) // Last 10 messages for context
+      conversationContext = recentChat
+        .map(msg => `${msg.sender === "user" ? "User" : "SITOR"}: ${msg.content}`)
+        .join("\n")
+    }
+
     const { text } = await generateText({
-      model: google("gemini-1.5-flash"),
-      prompt: `You are SITOR, an empathetic AI assistant specializing in emotional wellness and support.
+      model: google("gemini-2.0-flash"),
+      prompt: `You are SITOR, an empathetic AI assistant specialized in emotion detection and mental wellness support.
 
-Recent detected emotions: ${recentEmotions}
-User message: ${message}
+${conversationContext ? `Previous conversation context:\n${conversationContext}\n\n` : ""}
 
-Provide a helpful, supportive response that:
-- Acknowledges their emotions and feelings
-- Offers practical advice or coping strategies
-- Is warm and understanding
-- Relates to their emotional state when relevant
-- Keeps responses conversational and not too long
+Current user emotion: ${currentEmotion || "unknown"}
+Recent emotion history: ${recentEmotions || "none"}
 
-Remember, you're here to support their emotional wellbeing.`,
+User's current message: ${message}
+
+Instructions:
+- Continue the conversation naturally, referring to previous context when relevant
+- Provide empathetic and supportive responses
+- Give practical advice related to the user's emotional state
+- Keep responses concise but caring
+- Respond in the same language the user is using
+- Remember previous topics discussed in this conversation
+
+Respond as SITOR:`,
     })
 
     return { success: true, response: text }

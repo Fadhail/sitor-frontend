@@ -49,9 +49,9 @@ export function EmotionChat({ currentEmotion, emotionHistory = [], isOpen, onClo
   // Show initial recommendation when emotion is detected
   useEffect(() => {
     if (
-      currentEmotion && 
-      isOpen && 
-      currentEmotion !== lastProcessedEmotion && 
+      currentEmotion &&
+      isOpen &&
+      currentEmotion !== lastProcessedEmotion &&
       !isProcessingRef.current
     ) {
       isProcessingRef.current = true
@@ -104,12 +104,24 @@ export function EmotionChat({ currentEmotion, emotionHistory = [], isOpen, onClo
       timestamp: new Date(),
     }
 
-    setMessages((prev) => [...prev, userMessage])
+    const updatedMessages = [...messages, userMessage]
+    setMessages(updatedMessages)
     setInputMessage("")
     setIsLoading(true)
     setError(null)
 
-    const result = await chatWithGemini(inputMessage, emotionHistory)
+    // Convert messages to format expected by chatWithGemini
+    const chatHistory = updatedMessages.map(msg => ({
+      content: msg.content,
+      sender: msg.sender
+    }))
+
+    const result = await chatWithGemini(
+      inputMessage,
+      emotionHistory,
+      chatHistory,
+      currentEmotion
+    )
 
     if (result.success) {
       const aiMessage: Message = {

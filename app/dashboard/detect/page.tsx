@@ -27,6 +27,7 @@ export default function DetectPage() {
   const [loadingProgress, setLoadingProgress] = useState(0)
   const [faceApiLoaded, setFaceApiLoaded] = useState(false)
   const [isCameraOn, setIsCameraOn] = useState(false)
+  const [landmarksDrawn, setLandmarksDrawn] = useState(false)
 
   // Load face-api.js
   useEffect(() => {
@@ -52,20 +53,45 @@ export default function DetectPage() {
       }
 
       setLoadingProgress(10)
+      console.log('[DEBUG] Starting to load models...')
 
       // Load models sequentially and update progress
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (faceapi as any).nets.tinyFaceDetector.load("/models")
+      console.log('[DEBUG] TinyFaceDetector loaded')
+      setLoadingProgress(25)
+
+      // Load SSD MobileNet as fallback
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (faceapi as any).nets.ssdMobilenetv1.load("/models")
+        console.log('[DEBUG] SsdMobilenetv1 loaded')
+      } catch (ssdError) {
+        console.warn('[DEBUG] SsdMobilenetv1 failed to load:', ssdError)
+      }
       setLoadingProgress(40)
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (faceapi as any).nets.faceLandmark68Net.load("/models")
-      setLoadingProgress(60)
+      console.log('[DEBUG] FaceLandmark68Net loaded')
+      setLoadingProgress(70)
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (faceapi as any).nets.faceRecognitionNet.load("/models")
-      setLoadingProgress(80)
+      console.log('[DEBUG] FaceRecognitionNet loaded')
+      setLoadingProgress(85)
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (faceapi as any).nets.faceExpressionNet.load("/models")
+      console.log('[DEBUG] FaceExpressionNet loaded')
       setLoadingProgress(100)
+
+      console.log('[DEBUG] All models loaded successfully')
+
+      // Validate that landmark model is properly loaded
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const landmarkModel = (faceapi as any).nets.faceLandmark68Net
+      console.log('[DEBUG] Landmark model status:', landmarkModel.isLoaded)
 
       setIsModelLoaded(true)
     } catch (err) {
@@ -133,59 +159,124 @@ export default function DetectPage() {
     if (!isDetecting) return
 
     const faceapi = (window as FaceApiWindow).faceapi
-    console.log('[DEBUG] detectEmotions called, isDetecting:', isDetecting, 'faceapi:', faceapi)
     if (!faceapi || typeof faceapi !== 'object' || !videoRef.current || !canvasRef.current) {
-      console.warn('[DEBUG] faceapi not loaded or refs missing')
       return
     }
 
     const video = videoRef.current
     const canvas = canvasRef.current
-    if (!video || !canvas) {
-      console.warn('[DEBUG] video or canvas ref missing')
+
+    // Check if video is ready and has valid dimensions
+    if (!video || !canvas || video.videoWidth === 0 || video.videoHeight === 0) {
+      // Retry after a short delay if video isn't ready
+      if (isDetecting) {
+        setTimeout(() => detectEmotions(), 100)
+      }
       return
     }
-    const width = video.videoWidth;
-    const height = video.videoHeight;
-    if (canvas.width !== width) canvas.width = width;
-    if (canvas.height !== height) canvas.height = height;
-    const __faceApiDimsObj: { width: number; height: number } = { width, height };
+
+    // PERBAIKAN: Set canvas dimensions berdasarkan display size video element
+    const videoRect = video.getBoundingClientRect()
+    const displaySize = { 
+      width: video.offsetWidth || videoRect.width, 
+      height: video.offsetHeight || videoRect.height 
+    }
+    
+    // Set canvas size to match video display size
+    canvas.width = displaySize.width
+    canvas.height = displaySize.height
+    canvas.style.width = `${displaySize.width}px`
+    canvas.style.height = `${displaySize.height}px`
+
     // @ts-expect-error face-api.js is loaded globally from CDN
-    faceapi.matchDimensions(canvas, __faceApiDimsObj)
+    faceapi.matchDimensions(canvas, displaySize)
 
     try {
-      console.log('[DEBUG] Running faceapi detection...')
+      // Use single-chain detection for better compatibility
       const detections = await faceapi
         // @ts-expect-error face-api.js is loaded globally from CDN
-        .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
+        .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({
+          inputSize: 416,
+          scoreThreshold: 0.5
+        }))
         .withFaceLandmarks()
         .withFaceExpressions()
-      console.log('[DEBUG] Detections:', detections)
 
+      // Get canvas context
       const ctx = canvas.getContext("2d")
-      if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height)
+      if (!ctx) return
 
-      // @ts-expect-error face-api.js is loaded globally from CDN
-      const resizedDetections = faceapi.resizeResults(detections, __faceApiDimsObj)
-      // @ts-expect-error face-api.js is loaded globally from CDN
-      faceapi.draw.drawDetections(canvas, resizedDetections)
-      console.log('[DEBUG] resizedDetections:', resizedDetections)
-      if (resizedDetections.length > 0) {
-        console.log('[DEBUG] resizedDetections[0].landmarks:', resizedDetections[0].landmarks)
-        // Paksa gambar landmark meskipun tidak ada property landmarks
+      // Clear canvas completely
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+      if (detections.length > 0) {
+        // Resize detections to match canvas dimensions
         // @ts-expect-error face-api.js is loaded globally from CDN
-        faceapi.draw.drawFaceLandmarks(canvas, resizedDetections)
-        if (!resizedDetections[0].landmarks) {
-          console.warn('[DEBUG] Landmark property tidak ditemukan pada hasil deteksi!')
-        }
-      } else {
-        console.warn('[DEBUG] Tidak ada hasil deteksi wajah!')
-      }
-      // @ts-expect-error face-api.js is loaded globally from CDN
-      faceapi.draw.drawFaceExpressions(canvas, resizedDetections)
-      console.log('[DEBUG] resizedDetections:', resizedDetections)
+        const resizedDetections = faceapi.resizeResults(detections, displaySize)
 
-      if (resizedDetections.length > 0) {
+        // Force draw landmarks manually - this is the most reliable method
+        if (resizedDetections[0] && resizedDetections[0].landmarks) {
+          const landmarks = resizedDetections[0].landmarks
+
+          // Manual landmark drawing - most reliable
+          ctx.save()
+          ctx.fillStyle = '#00FF00' // Bright green untuk visibility
+          ctx.lineWidth = 1
+
+          // Get landmark points with multiple fallbacks
+          let points = null
+          if (landmarks.positions) {
+            points = landmarks.positions
+          } else if (landmarks._positions) {
+            points = landmarks._positions
+          } else if (landmarks.points) {
+            points = landmarks.points
+          } else if (Array.isArray(landmarks)) {
+            points = landmarks
+          } else {
+            // Try to extract from nested objects
+            const keys = Object.keys(landmarks)
+            for (const key of keys) {
+              if (Array.isArray(landmarks[key])) {
+                points = landmarks[key]
+                break
+              }
+            }
+          }
+
+          if (points && Array.isArray(points) && points.length > 0) {
+            // Draw all landmark points
+            points.forEach((point: any) => {
+              if (point && typeof point.x === 'number' && typeof point.y === 'number') {
+                // PERBAIKAN: Pastikan koordinat berada dalam batas canvas
+                const x = Math.max(0, Math.min(point.x, canvas.width))
+                const y = Math.max(0, Math.min(point.y, canvas.height))
+                
+                // Draw landmark point dengan ukuran yang lebih kecil dan konsisten
+                ctx.beginPath()
+                ctx.arc(x, y, 1.5, 0, 2 * Math.PI)
+                ctx.fill()
+              }
+            })
+            
+            setLandmarksDrawn(true)
+          } else {
+            // Try alternative landmark drawing using face-api built-in method
+            try {
+              // @ts-expect-error face-api.js is loaded globally from CDN
+              faceapi.draw.drawFaceLandmarks(canvas, resizedDetections)
+              setLandmarksDrawn(true)
+            } catch (drawError) {
+              setLandmarksDrawn(false)
+            }
+          }
+
+          ctx.restore()
+        } else {
+          setLandmarksDrawn(false)
+        }
+
+        // Process expressions
         const expressions = resizedDetections[0].expressions
         const results = Object.entries(expressions)
           .map(([expression, probability]) => ({
@@ -193,19 +284,8 @@ export default function DetectPage() {
             probability: Number(probability),
           }))
           .sort((a, b) => b.probability - a.probability)
-        setDetectionResults(results)
-        console.log('[DEBUG] detectionResults:', results)
 
-        // Overlay dominant emotion text
-        if (ctx) {
-          ctx.save()
-          ctx.font = 'bold 24px Arial'
-          ctx.fillStyle = 'rgba(0,0,0,0.7)'
-          ctx.fillRect(10, 10, 260, 40)
-          ctx.fillStyle = '#fff'
-          ctx.fillText(`Dominant: ${results[0].expression} (${Math.round(results[0].probability * 100)}%)`, 20, 40)
-          ctx.restore()
-        }
+        setDetectionResults(results)
 
         // Save detection to history
         const timestamp = new Date().toISOString()
@@ -220,10 +300,14 @@ export default function DetectPage() {
           history.shift()
         }
         localStorage.setItem("emotionHistory", JSON.stringify(history))
+      } else {
+        setLandmarksDrawn(false)
       }
 
+      // Continue detection loop
       if (isDetecting) {
-        requestAnimationFrame(detectEmotions)
+        // Use setTimeout dengan delay yang lebih lama untuk mengurangi berkedip
+        setTimeout(() => detectEmotions(), 150)
       }
     } catch (err) {
       console.error('[DEBUG] Error during detection:', err)
@@ -308,12 +392,23 @@ export default function DetectPage() {
                     autoPlay
                     muted
                     playsInline
+                    width="640"
+                    height="480"
                     className="w-full h-full object-cover"
+                    onLoadedMetadata={() => {
+                      console.log('[DEBUG] Video metadata loaded:', {
+                        videoWidth: videoRef.current?.videoWidth,
+                        videoHeight: videoRef.current?.videoHeight
+                      })
+                    }}
                     onPlay={() => {
-                      if (isDetecting) detectEmotions()
+                      console.log('[DEBUG] Video started playing')
+                      if (isDetecting) {
+                        setTimeout(() => detectEmotions(), 500) // Give video time to fully load
+                      }
                     }}
                   />
-                  <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full" />
+                  <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full pointer-events-none" />
                   {/* Fix: Only show overlay if camera is off and models are loaded */}
                   {!isCameraOn ? (
                     isModelLoaded && (
@@ -392,6 +487,15 @@ export default function DetectPage() {
                     <div className="mt-2 flex items-center gap-2">
                       <div className={`w-4 h-4 rounded-full ${getEmotionColor(detectionResults[0].expression)}`} />
                       <span className="text-xl font-bold capitalize">{detectionResults[0].expression}</span>
+                    </div>
+                    
+                    <div className="mt-4 pt-4 border-t">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-3 h-3 rounded-full ${landmarksDrawn ? 'bg-green-500' : 'bg-red-500'}`} />
+                        <span className="text-sm text-muted-foreground">
+                          Landmarks: {landmarksDrawn ? 'Active' : 'Not detected'}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
