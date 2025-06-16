@@ -53,45 +53,27 @@ export default function DetectPage() {
       }
 
       setLoadingProgress(10)
-      console.log('[DEBUG] Starting to load models...')
 
       // Load models sequentially and update progress
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (faceapi as any).nets.tinyFaceDetector.load("/models")
-      console.log('[DEBUG] TinyFaceDetector loaded')
       setLoadingProgress(25)
 
       // Load SSD MobileNet as fallback
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await (faceapi as any).nets.ssdMobilenetv1.load("/models")
-        console.log('[DEBUG] SsdMobilenetv1 loaded')
       } catch (ssdError) {
         console.warn('[DEBUG] SsdMobilenetv1 failed to load:', ssdError)
       }
       setLoadingProgress(40)
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (faceapi as any).nets.faceLandmark68Net.load("/models")
-      console.log('[DEBUG] FaceLandmark68Net loaded')
       setLoadingProgress(70)
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (faceapi as any).nets.faceRecognitionNet.load("/models")
-      console.log('[DEBUG] FaceRecognitionNet loaded')
       setLoadingProgress(85)
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (faceapi as any).nets.faceExpressionNet.load("/models")
-      console.log('[DEBUG] FaceExpressionNet loaded')
       setLoadingProgress(100)
 
-      console.log('[DEBUG] All models loaded successfully')
-
-      // Validate that landmark model is properly loaded
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const landmarkModel = (faceapi as any).nets.faceLandmark68Net
-      console.log('[DEBUG] Landmark model status:', landmarkModel.isLoaded)
 
       setIsModelLoaded(true)
     } catch (err) {
@@ -120,6 +102,7 @@ export default function DetectPage() {
       if (videoRef.current) {
         videoRef.current.srcObject = stream
         setIsCameraOn(true)
+        setIsDetecting(true) // Mulai deteksi otomatis
       }
     } catch (err) {
       console.error("Error accessing camera:", err)
@@ -139,20 +122,12 @@ export default function DetectPage() {
 
     setIsCameraOn(false)
     setIsDetecting(false)
-  }
-
-  const startDetection = () => {
-    if (!isModelLoaded) {
-      setError("Models are still loading. Please wait.")
-      return
+    // Bersihkan canvas dan landmark saat kamera di-stop
+    if (canvasRef.current) {
+      const ctx = canvasRef.current.getContext('2d')
+      if (ctx) ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height)
     }
-
-    if (!videoRef.current || !videoRef.current.srcObject) {
-      startVideo()
-    }
-
-    setIsDetecting(true)
-    detectEmotions()
+    setLandmarksDrawn(false)
   }
 
   const detectEmotions = async () => {
@@ -396,16 +371,8 @@ export default function DetectPage() {
                     height="480"
                     className="w-full h-full object-cover"
                     onLoadedMetadata={() => {
-                      console.log('[DEBUG] Video metadata loaded:', {
-                        videoWidth: videoRef.current?.videoWidth,
-                        videoHeight: videoRef.current?.videoHeight
-                      })
                     }}
                     onPlay={() => {
-                      console.log('[DEBUG] Video started playing')
-                      if (isDetecting) {
-                        setTimeout(() => detectEmotions(), 500) // Give video time to fully load
-                      }
                     }}
                   />
                   <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full pointer-events-none" />
@@ -431,21 +398,6 @@ export default function DetectPage() {
                   Stop Camera
                 </Button>
               )}
-
-              {!isDetecting ? (
-                <Button onClick={startDetection} disabled={!isModelLoaded || !isCameraOn}>
-                  Start Detection
-                </Button>
-              ) : (
-                <Button onClick={() => setIsDetecting(false)} variant="secondary">
-                  Pause Detection
-                </Button>
-              )}
-
-              <Button onClick={captureScreenshot} variant="outline" disabled={!isCameraOn}>
-                <Download className="mr-2 h-4 w-4" />
-                Save Screenshot
-              </Button>
             </CardFooter>
           </Card>
 
@@ -487,15 +439,6 @@ export default function DetectPage() {
                     <div className="mt-2 flex items-center gap-2">
                       <div className={`w-4 h-4 rounded-full ${getEmotionColor(detectionResults[0].expression)}`} />
                       <span className="text-xl font-bold capitalize">{detectionResults[0].expression}</span>
-                    </div>
-                    
-                    <div className="mt-4 pt-4 border-t">
-                      <div className="flex items-center gap-2">
-                        <div className={`w-3 h-3 rounded-full ${landmarksDrawn ? 'bg-green-500' : 'bg-red-500'}`} />
-                        <span className="text-sm text-muted-foreground">
-                          Landmarks: {landmarksDrawn ? 'Active' : 'Not detected'}
-                        </span>
-                      </div>
                     </div>
                   </div>
                 </div>
