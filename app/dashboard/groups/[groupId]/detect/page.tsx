@@ -337,6 +337,32 @@ export default function DetectPage() {
     }
   }, [detectionResults])
 
+  // Simulasi: Kirim hasil deteksi ke localStorage per grup
+  useEffect(() => {
+    if (detectionResults.length > 0) {
+      const groupId = window.location.pathname.split("/").find((v, i, arr) => arr[i - 1] === "groups") || "default";
+      const groupKey = `group-detections-${groupId}`;
+      const user = localStorage.getItem("user") || `anggota-${Math.random().toString(36).slice(2, 8)}`;
+      const data = {
+        user,
+        timestamp: Date.now(),
+        emotion: detectionResults[0].expression,
+        probability: detectionResults[0].probability,
+      };
+      let groupData = [];
+      try {
+        groupData = JSON.parse(localStorage.getItem(groupKey) || "[]");
+      } catch {}
+      // replace or add user data
+      const idx = groupData.findIndex((d: any) => d.user === user);
+      if (idx >= 0) groupData[idx] = data;
+      else groupData.push(data);
+      localStorage.setItem(groupKey, JSON.stringify(groupData));
+      // Trigger update for leader dashboard
+      window.dispatchEvent(new StorageEvent("storage", { key: groupKey, newValue: JSON.stringify(groupData) }));
+    }
+  }, [detectionResults])
+
   return (
     <div className="container mx-auto py-6 space-y-6">
       <Script

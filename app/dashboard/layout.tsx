@@ -58,16 +58,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   Home
                 </Button>
               </Link>
-              <Link href="/dashboard/group">
+              <Link href="/dashboard/groups">
                 <Button variant="ghost" className="w-full justify-start">
                   <Users2Icon className="mr-2 h-4 w-4" />
                   Groups
-                </Button>
-              </Link>
-              <Link href="/dashboard/detect">
-                <Button variant="ghost" className="w-full justify-start">
-                  <SmilePlus className="mr-2 h-4 w-4" />
-                  Detect Emotions
                 </Button>
               </Link>
               <Link href="/dashboard/reports">
@@ -132,6 +126,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       <Button variant="ghost" className="w-full justify-start">
                         <Home className="mr-2 h-4 w-4" />
                         Home
+                      </Button>
+                    </Link>
+                    <Link href="/dashboard/groups" onClick={() => setIsMobileMenuOpen(false)}>
+                      <Button variant="ghost" className="w-full justify-start">
+                        <Users2Icon className="mr-2 h-4 w-4" />
+                        Groups
                       </Button>
                     </Link>
                     <Link href="/dashboard/detect" onClick={() => setIsMobileMenuOpen(false)}>
