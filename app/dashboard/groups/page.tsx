@@ -76,7 +76,8 @@ export default function GroupsPage() {
 		setAddError("");
 	};
 
-	const handleAddGroupSubmit = async (data: { name: string; description: string }) => {
+	// Perbaiki error pada handler di page agar mengirim securityCode
+	const handleAddGroupSubmit = async (data: { name: string; description: string; securityCode: string }) => {
 		setAddLoading(true);
 		setAddError("");
 		try {

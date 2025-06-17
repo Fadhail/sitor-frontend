@@ -1,5 +1,16 @@
 import { Line } from "react-chartjs-2";
-import type { ChartOptions } from "chart.js";
+import {
+  Chart as ChartJS,
+  LineElement,
+  PointElement,
+  LinearScale,
+  CategoryScale,
+  Title,
+  Tooltip,
+  Legend,
+} from "chart.js";
+
+ChartJS.register(LineElement, PointElement, LinearScale, CategoryScale, Title, Tooltip, Legend);
 
 interface EmotionTrendLineChartProps {
   recent: Array<{ timestamp: string; dominant: string }>;
@@ -26,14 +37,14 @@ export function EmotionTrendLineChart({ recent }: EmotionTrendLineChartProps) {
       },
     ],
   };
-  const options: ChartOptions<"line"> = {
+  const options = {
     responsive: true,
     plugins: {
       legend: { display: false },
       title: { display: false },
       tooltip: {
         callbacks: {
-          label: function(context) {
+          label: function(context: any) {
             const idx = context.parsed.y;
             return `Emotion: ${emotionLabels[idx]}`;
           },
@@ -46,7 +57,7 @@ export function EmotionTrendLineChart({ recent }: EmotionTrendLineChartProps) {
         max: 6,
         ticks: {
           stepSize: 1,
-          callback: function(value: unknown) {
+          callback: function(value: any) {
             if (typeof value === "number") return emotionLabels[value] || value;
             return value;
           },

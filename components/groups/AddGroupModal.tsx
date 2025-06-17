@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 interface AddGroupModalProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: { name: string; description: string }) => void;
+  onSubmit: (data: { name: string; description: string; securityCode: string }) => void;
   isLoading?: boolean;
   error?: string;
 }
@@ -13,17 +13,19 @@ interface AddGroupModalProps {
 export function AddGroupModal({ open, onClose, onSubmit, isLoading, error }: AddGroupModalProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [securityCode, setSecurityCode] = useState("");
 
   useEffect(() => {
     if (open) {
       setName("");
       setDescription("");
+      setSecurityCode("");
     }
   }, [open]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit({ name, description });
+    onSubmit({ name, description, securityCode });
   };
 
   if (!open) return null;
@@ -58,6 +60,16 @@ export function AddGroupModal({ open, onClose, onSubmit, isLoading, error }: Add
               placeholder="Deskripsi grup (opsional)"
               value={description}
               onChange={e => setDescription(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="block mb-1 font-medium">Kode Keamanan Grup</label>
+            <Input
+              type="text"
+              placeholder="Kode keamanan (wajib)"
+              value={securityCode}
+              onChange={e => setSecurityCode(e.target.value)}
+              required
             />
           </div>
           <Button type="submit" className="w-full" disabled={isLoading}>
