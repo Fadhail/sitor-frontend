@@ -90,4 +90,18 @@ export async function leaveGroup(groupId: string) {
   });
 }
 
+export async function updateCameraStatus({ groupId, isActive }: { groupId: string; isActive: boolean }) {
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : "";
+  return api.post(`/groups/${groupId}/camera-status`, { isActive }, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+}
+
+export async function getCameraStatus(groupId: string) {
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : "";
+  return api.get(`/groups/${groupId}/camera-status`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+}
+
 // Tidak perlu parameter role pada register/login, semua user netral

@@ -5,9 +5,11 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Progress } from "@/components/ui/progress"
-import { Camera, Download, AlertTriangle, Loader2 } from "lucide-react"
+import { Camera, CameraOff, Download, AlertTriangle, Loader2 } from "lucide-react"
 import Script from "next/script"
 import { createDetection } from "@/service/detections"
+import { updateCameraStatus } from "@/service/api"
+import dynamic from "next/dynamic"
 
 interface Detection {
   expression: string
@@ -21,6 +23,7 @@ interface FaceApiWindow extends Window {
 export default function DetectPage() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [isCameraActive, setIsCameraActive] = useState(false)
   const [isModelLoaded, setIsModelLoaded] = useState(false)
   const [isDetecting, setIsDetecting] = useState(false)
   const [detectionResults, setDetectionResults] = useState<Detection[]>([])
@@ -30,6 +33,21 @@ export default function DetectPage() {
   const [isCameraOn, setIsCameraOn] = useState(false)
   const [landmarksDrawn, setLandmarksDrawn] = useState(false)
   const [allDetections, setAllDetections] = useState<Detection[]>([])
+
+  // Inject face-api.js from CDN if not loaded
+  useEffect(() => {
+    // @ts-ignore
+    if (!window.faceapi) {
+      const script = document.createElement("script")
+      script.src = "https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"
+      script.async = true
+      script.onload = () => setFaceApiLoaded(true)
+      script.onerror = () => setError("Gagal memuat library face-api.js. Cek koneksi internet atau CDN.")
+      document.body.appendChild(script)
+    } else {
+      setFaceApiLoaded(true)
+    }
+  }, [])
 
   // Load face-api.js
   useEffect(() => {
@@ -45,6 +63,44 @@ export default function DetectPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDetecting])
+
+  // Aktifkan video dan deteksi saat user klik "Aktifkan Kamera"
+  useEffect(() => {
+    if (isCameraActive && isModelLoaded && !isCameraOn) {
+      startVideo();
+    }
+    // Stop kamera jika user menonaktifkan
+    if (!isCameraActive && isCameraOn) {
+      stopVideo();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCameraActive, isModelLoaded])
+
+  // Kirim data deteksi emosi ke backend secara realtime setiap 2 detik
+  useEffect(() => {
+    if (!isDetecting || !isCameraOn) return;
+    const groupId = window.location.pathname.split("/").find((v, i, arr) => arr[i - 1] === "groups") || "default";
+    const interval = setInterval(() => {
+      if (detectionResults.length > 0) {
+        // Ambil distribusi emosi terbaru
+        const emotionCounts: Record<string, number> = {
+          neutral: 0, happy: 0, sad: 0, angry: 0, surprised: 0, disgusted: 0
+        };
+        detectionResults.forEach((d) => {
+          if (emotionCounts[d.expression] !== undefined) {
+            emotionCounts[d.expression] += 1;
+          }
+        });
+        const total = detectionResults.length;
+        const emotionPercents: Record<string, number> = {};
+        Object.keys(emotionCounts).forEach((k) => {
+          emotionPercents[k] = total > 0 ? Math.round((emotionCounts[k] / total) * 100) : 0;
+        });
+        createDetection({ groupId, emotions: emotionPercents }).catch(() => {});
+      }
+    }, 2000); // interval 2 detik
+    return () => clearInterval(interval);
+  }, [isDetecting, isCameraOn, detectionResults]);
 
   const loadModels = async () => {
     try {
@@ -104,7 +160,11 @@ export default function DetectPage() {
       if (videoRef.current) {
         videoRef.current.srcObject = stream
         setIsCameraOn(true)
-        setIsDetecting(true) // Mulai deteksi otomatis
+        setIsDetecting(true)
+
+        // Kirim status kamera aktif ke backend
+        const groupId = window.location.pathname.split("/").find((v, i, arr) => arr[i - 1] === "groups") || "default"
+        updateCameraStatus({ groupId, isActive: true }).catch(() => {})
       }
     } catch (err) {
       console.error("Error accessing camera:", err)
@@ -113,26 +173,41 @@ export default function DetectPage() {
     }
   }
 
+  // Perbaiki: pastikan semua stream video benar-benar dimatikan (termasuk jika ada lebih dari satu track)
   const stopVideo = () => {
     if (videoRef.current && videoRef.current.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream
-      const tracks = stream.getTracks()
-
-      tracks.forEach((track) => track.stop())
-      videoRef.current.srcObject = null
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach((track) => {
+        try {
+          track.stop();
+        } catch {}
+      });
+      videoRef.current.srcObject = null;
     }
-
-    setIsCameraOn(false)
-    setIsDetecting(false)
-    // Bersihkan canvas dan landmark saat kamera di-stop
+    // Juga hentikan semua stream aktif di browser (fallback, untuk browser yang bandel)
+    if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+      navigator.mediaDevices.enumerateDevices().then((devices) => {
+        devices.forEach((device) => {
+          if (device.kind === "videoinput") {
+            // Tidak bisa stop device langsung, hanya bisa stop track dari stream
+            // Pastikan tidak ada stream tersisa
+          }
+        });
+      });
+    }
+    setIsCameraOn(false);
+    setIsDetecting(false);
     if (canvasRef.current) {
-      const ctx = canvasRef.current.getContext('2d')
-      if (ctx) ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height)
+      const ctx = canvasRef.current.getContext('2d');
+      if (ctx) ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
     }
     setLandmarksDrawn(false)
 
-    // Kirim rata-rata ke backend saat kamera di-stop
+    // Kirim status kamera nonaktif ke backend
     const groupId = window.location.pathname.split("/").find((v, i, arr) => arr[i - 1] === "groups") || "default"
+    updateCameraStatus({ groupId, isActive: false }).catch(() => {})
+
+    // Kirim rata-rata ke backend saat kamera di-stop
     const avg = calculateAverageEmotion(allDetections)
     if (avg && groupId && avg.expression) {
       // Kirim distribusi emosi terakhir (bukan hanya satu emosi)
@@ -218,16 +293,9 @@ export default function DetectPage() {
         // @ts-expect-error face-api.js is loaded globally from CDN
         const resizedDetections = faceapi.resizeResults(detections, displaySize)
 
-        // Force draw landmarks manually - this is the most reliable method
+        // Draw only landmark points (anti-flicker, hanya titik, tidak garis)
         if (resizedDetections[0] && resizedDetections[0].landmarks) {
           const landmarks = resizedDetections[0].landmarks
-
-          // Manual landmark drawing - most reliable
-          ctx.save()
-          ctx.fillStyle = '#00FF00' // Bright green untuk visibility
-          ctx.lineWidth = 1
-
-          // Get landmark points with multiple fallbacks
           let points = null
           if (landmarks.positions) {
             points = landmarks.positions
@@ -235,344 +303,222 @@ export default function DetectPage() {
             points = landmarks._positions
           } else if (landmarks.points) {
             points = landmarks.points
-          } else if (Array.isArray(landmarks)) {
-            points = landmarks
-          } else {
-            // Try to extract from nested objects
-            const keys = Object.keys(landmarks)
-            for (const key of keys) {
-              if (Array.isArray(landmarks[key])) {
-                points = landmarks[key]
-                break
-              }
-            }
           }
-
-          if (points && Array.isArray(points) && points.length > 0) {
-            // Draw all landmark points
-            points.forEach((point: any) => {
-              if (point && typeof point.x === 'number' && typeof point.y === 'number') {
-                // PERBAIKAN: Pastikan koordinat berada dalam batas canvas
-                const x = Math.max(0, Math.min(point.x, canvas.width))
-                const y = Math.max(0, Math.min(point.y, canvas.height))
-                
-                // Draw landmark point dengan ukuran yang lebih kecil dan konsisten
-                ctx.beginPath()
-                ctx.arc(x, y, 1.5, 0, 2 * Math.PI)
-                ctx.fill()
-              }
+          ctx.save()
+          ctx.globalAlpha = 0.85
+          // --- ANTI FLICKER: gambar landmark di atas frame video, JANGAN clearRect canvas (biarkan background tetap) ---
+          if (points && Array.isArray(points)) {
+            // Gambar titik landmark
+            points.forEach((p) => {
+              ctx.beginPath()
+              ctx.arc(p.x, p.y, 2.5, 0, 2 * Math.PI)
+              ctx.fillStyle = '#00FF00'
+              ctx.shadowColor = '#00FF00'
+              ctx.shadowBlur = 4
+              ctx.fill()
+              ctx.shadowBlur = 0
             })
-            
-            setLandmarksDrawn(true)
-          } else {
-            // Try alternative landmark drawing using face-api built-in method
-            try {
-              // @ts-expect-error face-api.js is loaded globally from CDN
-              faceapi.draw.drawFaceLandmarks(canvas, resizedDetections)
-              setLandmarksDrawn(true)
-            } catch (drawError) {
-              setLandmarksDrawn(false)
-            }
           }
-
           ctx.restore()
-        } else {
-          setLandmarksDrawn(false)
+          setLandmarksDrawn(true)
         }
 
-        // Process expressions
-        const expressions = resizedDetections[0].expressions
-        const results = Object.entries(expressions)
-          .map(([expression, probability]) => ({
-            expression,
-            probability: Number(probability),
-          }))
-          .sort((a, b) => b.probability - a.probability)
+        // Extract and store detection results
+        const newDetections = (detections as any[]).map((det: any) => ({
+          expression: det.expressions.asSortedArray()[0]?.expression || "neutral",
+          probability: det.expressions.asSortedArray()[0]?.probability || 0
+        }))
 
-        setDetectionResults(results)
-        // Tambahkan log detail
-        console.log("[DEBUG] expressions full:", expressions)
-        if (results[0]) {
-          console.log("[DEBUG] Deteksi berhasil, dominant:", results[0].expression)
-          setAllDetections(prev => [...prev, { expression: results[0].expression, probability: results[0].probability }])
-        }
+        setDetectionResults(newDetections)
 
-        // Save detection to history
-        const timestamp = new Date().toISOString()
-        const dominantEmotion = results[0].expression
-        const history = JSON.parse(localStorage.getItem("emotionHistory") || "[]")
-        history.push({
-          timestamp,
-          emotion: dominantEmotion,
-          probability: results[0].probability,
-        })
-        if (history.length > 50) {
-          history.shift()
-        }
-        localStorage.setItem("emotionHistory", JSON.stringify(history))
+        // Update all detections state
+        setAllDetections(prev => [...prev, ...newDetections])
       } else {
-        setLandmarksDrawn(false)
-      }
-
-      // Continue detection loop
-      if (isDetecting) {
-        // Use setTimeout dengan delay yang lebih lama untuk mengurangi berkedip
-        setTimeout(() => detectEmotions(), 150)
+        setDetectionResults([])
       }
     } catch (err) {
-      console.error('[DEBUG] Error during detection:', err)
-      setError("An error occurred during emotion detection.")
-      setIsDetecting(false)
+      console.error("Error during detection:", err)
+    }
+
+    // Retry detection after a short delay
+    if (isDetecting) {
+      setTimeout(() => detectEmotions(), 100)
     }
   }
 
-  const captureScreenshot = () => {
-    if (!canvasRef.current) return
-
-    const canvas = canvasRef.current
-    const link = document.createElement("a")
-    link.download = `emotion-detection-${new Date().toISOString()}.png`
-    link.href = canvas.toDataURL("image/png")
-    link.click()
+  // Helper untuk rata-rata emosi
+  function calculateAverageEmotion(detections: Detection[]) {
+    if (!detections.length) return null;
+    const counts: Record<string, number> = {};
+    detections.forEach((d) => {
+      counts[d.expression] = (counts[d.expression] || 0) + 1;
+    });
+    let max = 0;
+    let expression = "neutral";
+    Object.entries(counts).forEach(([emo, count]) => {
+      if (count > max) {
+        max = count;
+        expression = emo;
+      }
+    });
+    return { expression, count: max };
   }
 
-  const getEmotionColor = (emotion: string) => {
+  // Helper: Warna background emosi (modern, gradient)
+  function getEmotionColor(emotion: string) {
     switch (emotion.toLowerCase()) {
       case "happy":
-        return "bg-green-500"
+        return "bg-gradient-to-br from-yellow-400 to-green-400";
       case "sad":
-        return "bg-blue-500"
+        return "bg-gradient-to-br from-blue-400 to-blue-600";
       case "angry":
-        return "bg-red-500"
+        return "bg-gradient-to-br from-red-400 to-red-600";
       case "fearful":
-        return "bg-purple-500"
+        return "bg-gradient-to-br from-purple-400 to-purple-600";
       case "disgusted":
-        return "bg-yellow-500"
+        return "bg-gradient-to-br from-lime-400 to-yellow-500";
       case "surprised":
-        return "bg-pink-500"
+        return "bg-gradient-to-br from-pink-400 to-pink-600";
+      case "neutral":
+        return "bg-gradient-to-br from-gray-300 to-gray-400";
       default:
-        return "bg-gray-500"
+        return "bg-gradient-to-br from-gray-200 to-gray-300";
     }
   }
 
-  // Update dashboard with current emotion
-  useEffect(() => {
-    if (detectionResults.length > 0) {
-      const dominantEmotion = detectionResults[0].expression
-      // Store current emotion for dashboard
-      localStorage.setItem("currentEmotion", dominantEmotion)
-
-      // Trigger storage event for dashboard to update
-      window.dispatchEvent(
-        new StorageEvent("storage", {
-          key: "currentEmotion",
-          newValue: dominantEmotion,
-        }),
-      )
-    }
-  }, [detectionResults])
-
-  // Simulasi: Kirim hasil deteksi ke localStorage per grup
-  useEffect(() => {
-    if (detectionResults.length > 0) {
-      const groupId = window.location.pathname.split("/").find((v, i, arr) => arr[i - 1] === "groups") || "default";
-      const user = JSON.parse(localStorage.getItem("user") || "null");
-      // ...existing localStorage logic jika ingin tetap simpan lokal...
-      const groupKey = `group-detections-${groupId}`;
-      const data = {
-        user: user?.id || `anggota-${Math.random().toString(36).slice(2, 8)}`,
-        timestamp: Date.now(),
-        emotion: detectionResults[0].expression,
-        probability: detectionResults[0].probability,
-      };
-      let groupData = [];
-      try {
-        groupData = JSON.parse(localStorage.getItem(groupKey) || "[]");
-      } catch {}
-      const idx = groupData.findIndex((d: any) => d.user === data.user);
-      if (idx >= 0) groupData[idx] = data;
-      else groupData.push(data);
-      localStorage.setItem(groupKey, JSON.stringify(groupData));
-    }
-  }, [detectionResults])
-
-  // Tambahkan interval untuk kirim distribusi emosi ke backend setiap 5 detik
-  useEffect(() => {
-    if (!isDetecting) return;
-    const interval = setInterval(() => {
-      setAllDetections(prevAllDetections => {
-        if (prevAllDetections.length > 0) {
-          // Gunakan key sesuai face-api.js: surprised
-          const emotionCounts: Record<string, number> = {
-            neutral: 0, happy: 0, sad: 0, angry: 0, surprised: 0, disgusted: 0
-          };
-          prevAllDetections.forEach((d) => {
-            if (emotionCounts[d.expression] !== undefined) {
-              emotionCounts[d.expression] += 1;
-            }
-          });
-          // Hitung persentase
-          const total = prevAllDetections.length;
-          const emotionPercents: Record<string, number> = {};
-          Object.keys(emotionCounts).forEach((k) => {
-            emotionPercents[k] = total > 0 ? Math.round((emotionCounts[k] / total) * 100) : 0;
-          });
-          console.log("[DEBUG] allDetections to be sent:", prevAllDetections);
-          console.log("[DEBUG] emotionPercents to be sent:", emotionPercents);
-          const groupId = window.location.pathname.split("/").find((v, i, arr) => arr[i - 1] === "groups") || "default";
-          // Kirim distribusi emosi ke backend
-          createDetection({
-            groupId,
-            emotions: emotionPercents,
-          }).catch((err) => {
-            console.error("[DEBUG] Gagal kirim summary deteksi ke backend:", err);
-          });
-          return [];
-        } else {
-          console.log("[DEBUG] allDetections kosong, tidak ada data yang dikirim ke backend");
-          return prevAllDetections;
-        }
-      });
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [isDetecting])
-
-  // Fungsi untuk hitung rata-rata emosi
-  function calculateAverageEmotion(detections: Detection[]) {
-    if (detections.length === 0) return null
-    const stats: { [key: string]: number[] } = {}
-    detections.forEach(({ expression, probability }) => {
-      if (!stats[expression]) stats[expression] = []
-      stats[expression].push(probability)
-    })
-    // Ambil emosi dengan jumlah terbanyak (mode)
-    let dominant = ""
-    let maxCount = 0
-    Object.keys(stats).forEach(expr => {
-      if (stats[expr].length > maxCount) {
-        dominant = expr
-        maxCount = stats[expr].length
-      }
-    })
-    // Hitung rata-rata probability untuk emosi dominan
-    const avg = stats[dominant]?.reduce((a, b) => a + b, 0) / stats[dominant]?.length || 0
-    return { expression: dominant, probability: avg }
+  // Helper: Screenshot
+  function captureScreenshot() {
+    if (!canvasRef.current) return;
+    const canvas = canvasRef.current;
+    const link = document.createElement("a");
+    link.download = `emotion-detection-${new Date().toISOString()}.png`;
+    link.href = canvas.toDataURL("image/png");
+    link.click();
   }
 
-  return (
-    <div className="container mx-auto py-6 space-y-6">
-      <Script
-        src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"
-        onLoad={() => setFaceApiLoaded(true)}
-        onError={() => setError("Failed to load face-api.js library")}
-      />
-
-      <div className="flex flex-col md:flex-row gap-6">
-        <div className="md:w-2/3 space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>SITOR Emotion Detection</CardTitle>
-              <CardDescription>Use your webcam to detect facial expressions and emotions in real-time</CardDescription>
-            </CardHeader>
-            <CardContent className="flex justify-center">
-              <div className="relative w-full max-w-md">
-                {!isModelLoaded && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm z-10">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary mb-2" />
-                    <p className="text-sm font-medium">Loading models...</p>
-                    <Progress value={loadingProgress} className="w-64 mt-2" />
-                  </div>
-                )}
-                <div className="relative aspect-video bg-muted rounded-lg overflow-hidden">
-                  <video
-                    ref={videoRef}
-                    autoPlay
-                    muted
-                    playsInline
-                    width="640"
-                    height="480"
-                    className="w-full h-full object-cover"
-                    onLoadedMetadata={() => {
-                    }}
-                    onPlay={() => {
-                    }}
-                  />
-                  <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full pointer-events-none" />
-                  {/* Fix: Only show overlay if camera is off and models are loaded */}
-                  {!isCameraOn ? (
-                    isModelLoaded && (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center">
-                        <Camera className="h-12 w-12 text-muted-foreground mb-2" />
-                        <p className="text-sm text-muted-foreground">Click &quot;Start Camera&quot; to begin</p>
-                      </div>
-                    )
-                  ) : null}
-                </div>
-              </div>
-            </CardContent>
-            <CardFooter className="flex justify-center gap-4 flex-wrap">
-              {!isCameraOn ? (
-                <Button onClick={startVideo} disabled={!isModelLoaded}>
-                  Start Camera
-                </Button>
-              ) : (
-                <Button onClick={stopVideo} variant="outline">
-                  Stop Camera
-                </Button>
-              )}
-            </CardFooter>
-          </Card>
-
-          {error && (
-            <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>Error</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
+  // Initial State: Kamera belum aktif
+  if (!isCameraActive) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="w-full max-w-xl flex flex-col items-center justify-center bg-white rounded-2xl shadow-2xl p-10 gap-6">
+          <Camera className="w-24 h-24 text-gray-300 mb-4" />
+          <h1 className="text-3xl font-extrabold text-gray-900 mb-2">Deteksi Emosi Wajah</h1>
+          <p className="text-gray-500 text-lg text-center mb-4">Aktifkan kamera untuk mulai analisis ekspresi wajah secara real-time.</p>
+          <Button
+            size="lg"
+            className="px-8 py-4 text-lg font-bold"
+            onClick={() => setIsCameraActive(true)}
+          >
+            Aktifkan Kamera
+          </Button>
         </div>
+      </div>
+    )
+  }
 
-        <div className="md:w-1/3">
-          <Card>
-            <CardHeader>
-              <CardTitle>Detection Results</CardTitle>
-              <CardDescription>Real-time emotion probabilities</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {detectionResults.length > 0 ? (
-                <div className="space-y-4">
-                  {detectionResults.slice(0, 6).map((result) => (
-                    <div key={result.expression} className="space-y-1">
-                      <div className="flex justify-between text-sm">
-                        <span className="capitalize">{result.expression}</span>
-                        <span>{Math.round(result.probability * 100)}%</span>
+  // Kamera aktif: tampilkan layout dua kartu
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center py-8 px-2 md:px-0">
+      <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-8">
+        {/* Kartu Kamera & Deteksi */}
+        <Card className="shadow-xl border-2 border-primary/10 flex flex-col items-center p-0">
+          <CardHeader className="w-full pb-2 flex flex-col items-center justify-center">
+            <CardTitle className="text-xl font-extrabold text-gray-900 tracking-tight text-center w-full">Kamera & Deteksi</CardTitle>
+            <CardDescription className="text-gray-500 text-center w-full mt-1">Pastikan wajah Anda terlihat jelas di kamera.</CardDescription>
+          </CardHeader>
+          <CardContent className="w-full flex flex-col items-center">
+            <div className="relative w-full max-w-md aspect-video bg-gradient-to-br from-gray-200 to-gray-100 rounded-2xl overflow-hidden mb-4 shadow-lg border border-gray-200 flex items-center justify-center">
+              <video
+                ref={videoRef}
+                className="w-full h-full object-cover rounded-2xl border-4 border-primary/30 shadow-lg transition-all duration-300"
+                autoPlay
+                playsInline
+                muted
+                style={{ background: '#e5e7eb' }}
+              />
+              <canvas
+                ref={canvasRef}
+                className="absolute top-0 left-0 w-full h-full pointer-events-none"
+              />
+              {!isCameraOn && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-100/80 animate-fade-in">
+                  <Camera className="w-20 h-20 text-gray-300 mb-4" />
+                  <span className="text-gray-400 text-lg font-semibold">Kamera belum aktif</span>
+                </div>
+              )}
+            </div>
+            <div className="flex flex-row gap-2 w-full justify-center mt-2">
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  setIsCameraActive(false);
+                  stopVideo();
+                }}
+                className="px-6 py-2 text-base font-semibold rounded-xl shadow"
+              >
+                Hentikan Kamera
+              </Button>
+              <Button
+                variant="outline"
+                onClick={captureScreenshot}
+                className="px-6 py-2 text-base font-semibold rounded-xl shadow"
+                disabled={!isCameraOn}
+              >
+                <Download className="mr-2" />
+                Ambil Screenshot
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+        {/* Kartu Hasil Deteksi Emosi */}
+        <Card className="shadow-xl border-2 border-primary/10 flex flex-col items-center p-0">
+          <CardHeader className="w-full pb-2 flex flex-col items-center justify-center">
+            <CardTitle className="text-xl font-extrabold text-gray-900 tracking-tight text-center w-full">Hasil Deteksi Emosi</CardTitle>
+            <CardDescription className="text-gray-500 text-center w-full mt-1">Visualisasi emosi utama & probabilitas.</CardDescription>
+          </CardHeader>
+          <CardContent className="w-full flex flex-col items-center min-h-[320px] justify-center">
+            {detectionResults.length === 0 && (
+              <div className="flex flex-col items-center justify-center h-full min-h-[180px] animate-fade-in">
+                <Loader2 className="w-8 h-8 text-primary animate-spin mb-2" />
+                <div className="text-gray-400 text-base font-medium">Mendeteksi wajah dan emosi...</div>
+              </div>
+            )}
+            {detectionResults.length > 0 && (
+              <div className="w-full flex flex-col gap-6 items-center animate-fade-in">
+                <div className="flex flex-row gap-4 w-full justify-center">
+                  {detectionResults.slice(0, 2).map((result, idx) => (
+                    <div
+                      key={idx}
+                      className={`flex flex-col items-center justify-center p-6 rounded-2xl shadow-md border bg-white min-w-[140px] max-w-[180px] transition-all duration-200`}
+                    >
+                      <div className="text-3xl font-extrabold capitalize mb-1 drop-shadow-sm tracking-wide text-gray-800 text-center">
+                        {result.expression}
                       </div>
-                      <div className="h-2 rounded-full bg-muted">
-                        <div
-                          className={`h-full rounded-full ${getEmotionColor(result.expression)}`}
-                          style={{ width: `${result.probability * 100}%` }}
-                        />
+                      <div className="text-lg text-gray-700 font-semibold text-center">
+                        {Math.round(result.probability * 100)}%
                       </div>
                     </div>
                   ))}
-
-                  <div className="mt-6 pt-4 border-t">
-                    <p className="font-medium">Dominant Emotion</p>
-                    <div className="mt-2 flex items-center gap-2">
-                      <div className={`w-4 h-4 rounded-full ${getEmotionColor(detectionResults[0].expression)}`} />
-                      <span className="text-xl font-bold capitalize">{detectionResults[0].expression}</span>
+                </div>
+                <div className="w-full grid grid-cols-2 gap-3">
+                  {detectionResults.slice(2, 6).map((result, idx) => (
+                    <div
+                      key={idx}
+                      className={`flex flex-col items-center justify-center p-3 rounded-xl shadow border bg-white transition-all duration-200`}
+                    >
+                      <div className="text-base font-bold capitalize mb-1 text-gray-700 text-center">
+                        {result.expression}
+                      </div>
+                      <div className="text-xs text-gray-500 font-semibold text-center">
+                        {Math.round(result.probability * 100)}%
+                      </div>
                     </div>
-                  </div>
+                  ))}
                 </div>
-              ) : (
-                <div className="py-8 text-center text-muted-foreground">
-                  <p>No emotions detected yet</p>
-                  <p className="text-sm mt-2">Start detection to see results</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   )
