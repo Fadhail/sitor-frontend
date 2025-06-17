@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { AlertCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { login } from "@/service/api"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -25,18 +26,17 @@ export default function LoginPage() {
     setError("")
 
     try {
-      // In a real app, you would validate credentials with your backend
-      // This is a mock implementation for demo purposes
-      if (email === "demo@example.com" && password === "password") {
-        // Mock successful login
+      const response = await login({ email, password })
+      if (response.data && response.data.success) {
         localStorage.setItem("isLoggedIn", "true")
-        localStorage.setItem("user", JSON.stringify({ email, name: "Demo User" }))
+        localStorage.setItem("user", JSON.stringify(response.data.user))
+        localStorage.setItem("token", response.data.token)
         router.push("/dashboard")
       } else {
-        setError("Invalid email or password. Try demo@example.com / password")
+        setError(response.data.message || "Login failed")
       }
-    } catch {
-      setError("An error occurred during login. Please try again.")
+    } catch (err: any) {
+      setError(err.response?.data?.message || "An error occurred during login. Please try again.")
     } finally {
       setIsLoading(false)
     }

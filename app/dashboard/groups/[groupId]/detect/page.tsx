@@ -7,6 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Progress } from "@/components/ui/progress"
 import { Camera, Download, AlertTriangle, Loader2 } from "lucide-react"
 import Script from "next/script"
+import { createDetection } from "@/service/detections"
 
 interface Detection {
   expression: string
@@ -28,6 +29,7 @@ export default function DetectPage() {
   const [faceApiLoaded, setFaceApiLoaded] = useState(false)
   const [isCameraOn, setIsCameraOn] = useState(false)
   const [landmarksDrawn, setLandmarksDrawn] = useState(false)
+  const [allDetections, setAllDetections] = useState<Detection[]>([])
 
   // Load face-api.js
   useEffect(() => {
@@ -128,6 +130,33 @@ export default function DetectPage() {
       if (ctx) ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height)
     }
     setLandmarksDrawn(false)
+
+    // Kirim rata-rata ke backend saat kamera di-stop
+    const groupId = window.location.pathname.split("/").find((v, i, arr) => arr[i - 1] === "groups") || "default"
+    const avg = calculateAverageEmotion(allDetections)
+    if (avg && groupId && avg.expression) {
+      // Kirim distribusi emosi terakhir (bukan hanya satu emosi)
+      const emotionCounts: Record<string, number> = {
+        neutral: 0, happy: 0, sad: 0, angry: 0, surprised: 0, disgusted: 0
+      };
+      allDetections.forEach((d) => {
+        if (emotionCounts[d.expression] !== undefined) {
+          emotionCounts[d.expression] += 1;
+        }
+      });
+      const total = allDetections.length;
+      const emotionPercents: Record<string, number> = {};
+      Object.keys(emotionCounts).forEach((k) => {
+        emotionPercents[k] = total > 0 ? Math.round((emotionCounts[k] / total) * 100) : 0;
+      });
+      createDetection({
+        groupId,
+        emotions: emotionPercents,
+      }).catch((err) => {
+        console.error("[DEBUG] Gagal kirim deteksi rata-rata ke backend:", err)
+      })
+    }
+    setAllDetections([]) // reset setelah kirim
   }
 
   const detectEmotions = async () => {
@@ -261,6 +290,12 @@ export default function DetectPage() {
           .sort((a, b) => b.probability - a.probability)
 
         setDetectionResults(results)
+        // Tambahkan log detail
+        console.log("[DEBUG] expressions full:", expressions)
+        if (results[0]) {
+          console.log("[DEBUG] Deteksi berhasil, dominant:", results[0].expression)
+          setAllDetections(prev => [...prev, { expression: results[0].expression, probability: results[0].probability }])
+        }
 
         // Save detection to history
         const timestamp = new Date().toISOString()
@@ -341,10 +376,11 @@ export default function DetectPage() {
   useEffect(() => {
     if (detectionResults.length > 0) {
       const groupId = window.location.pathname.split("/").find((v, i, arr) => arr[i - 1] === "groups") || "default";
+      const user = JSON.parse(localStorage.getItem("user") || "null");
+      // ...existing localStorage logic jika ingin tetap simpan lokal...
       const groupKey = `group-detections-${groupId}`;
-      const user = localStorage.getItem("user") || `anggota-${Math.random().toString(36).slice(2, 8)}`;
       const data = {
-        user,
+        user: user?.id || `anggota-${Math.random().toString(36).slice(2, 8)}`,
         timestamp: Date.now(),
         emotion: detectionResults[0].expression,
         probability: detectionResults[0].probability,
@@ -353,15 +389,75 @@ export default function DetectPage() {
       try {
         groupData = JSON.parse(localStorage.getItem(groupKey) || "[]");
       } catch {}
-      // replace or add user data
-      const idx = groupData.findIndex((d: any) => d.user === user);
+      const idx = groupData.findIndex((d: any) => d.user === data.user);
       if (idx >= 0) groupData[idx] = data;
       else groupData.push(data);
       localStorage.setItem(groupKey, JSON.stringify(groupData));
-      // Trigger update for leader dashboard
-      window.dispatchEvent(new StorageEvent("storage", { key: groupKey, newValue: JSON.stringify(groupData) }));
     }
   }, [detectionResults])
+
+  // Tambahkan interval untuk kirim distribusi emosi ke backend setiap 5 detik
+  useEffect(() => {
+    if (!isDetecting) return;
+    const interval = setInterval(() => {
+      setAllDetections(prevAllDetections => {
+        if (prevAllDetections.length > 0) {
+          // Gunakan key sesuai face-api.js: surprised
+          const emotionCounts: Record<string, number> = {
+            neutral: 0, happy: 0, sad: 0, angry: 0, surprised: 0, disgusted: 0
+          };
+          prevAllDetections.forEach((d) => {
+            if (emotionCounts[d.expression] !== undefined) {
+              emotionCounts[d.expression] += 1;
+            }
+          });
+          // Hitung persentase
+          const total = prevAllDetections.length;
+          const emotionPercents: Record<string, number> = {};
+          Object.keys(emotionCounts).forEach((k) => {
+            emotionPercents[k] = total > 0 ? Math.round((emotionCounts[k] / total) * 100) : 0;
+          });
+          console.log("[DEBUG] allDetections to be sent:", prevAllDetections);
+          console.log("[DEBUG] emotionPercents to be sent:", emotionPercents);
+          const groupId = window.location.pathname.split("/").find((v, i, arr) => arr[i - 1] === "groups") || "default";
+          // Kirim distribusi emosi ke backend
+          createDetection({
+            groupId,
+            emotions: emotionPercents,
+          }).catch((err) => {
+            console.error("[DEBUG] Gagal kirim summary deteksi ke backend:", err);
+          });
+          return [];
+        } else {
+          console.log("[DEBUG] allDetections kosong, tidak ada data yang dikirim ke backend");
+          return prevAllDetections;
+        }
+      });
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [isDetecting])
+
+  // Fungsi untuk hitung rata-rata emosi
+  function calculateAverageEmotion(detections: Detection[]) {
+    if (detections.length === 0) return null
+    const stats: { [key: string]: number[] } = {}
+    detections.forEach(({ expression, probability }) => {
+      if (!stats[expression]) stats[expression] = []
+      stats[expression].push(probability)
+    })
+    // Ambil emosi dengan jumlah terbanyak (mode)
+    let dominant = ""
+    let maxCount = 0
+    Object.keys(stats).forEach(expr => {
+      if (stats[expr].length > maxCount) {
+        dominant = expr
+        maxCount = stats[expr].length
+      }
+    })
+    // Hitung rata-rata probability untuk emosi dominan
+    const avg = stats[dominant]?.reduce((a, b) => a + b, 0) / stats[dominant]?.length || 0
+    return { expression: dominant, probability: avg }
+  }
 
   return (
     <div className="container mx-auto py-6 space-y-6">

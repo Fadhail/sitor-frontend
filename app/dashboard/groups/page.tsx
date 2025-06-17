@@ -1,57 +1,122 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-
-const dummyGroups = [
-	{ id: "grp1", name: "Grup A", description: "Kelompok belajar A" },
-	{ id: "grp2", name: "Grup B", description: "Kelompok belajar B" },
-	{ id: "grp3", name: "Grup C", description: "Kelompok diskusi C" },
-];
+import { getGroups, joinGroup } from "@/service/api";
+import { useUserGroups } from "./useUserGroups";
+import { getGroupMembers } from "@/service/groupMembers";
 
 export default function GroupsPage() {
+	const [groups, setGroups] = useState<any[]>([]);
 	const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
 	const [securityCode, setSecurityCode] = useState("");
-	const [role, setRole] = useState("anggota");
 	const [showModal, setShowModal] = useState(false);
+	const [error, setError] = useState("");
+	const [isLoading, setIsLoading] = useState(false);
 	const router = useRouter();
+
+	const user =
+		typeof window !== "undefined"
+			? JSON.parse(localStorage.getItem("user") || "null")
+			: null;
+
+	useEffect(() => {
+		getGroups()
+			.then((res) => {
+				console.log("[DEBUG] getGroups response:", res.data);
+				setGroups(res.data.groups || []);
+			})
+			.catch((err) => {
+				console.error("[DEBUG] getGroups error:", err);
+				setGroups([]);
+			});
+	}, []);
 
 	const handleSelectGroup = (groupId: string) => {
 		setSelectedGroup(groupId);
 		setShowModal(true);
+		setError("");
 	};
 
-	const handleJoin = (e: React.FormEvent) => {
+	const handleJoin = (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
-		if (selectedGroup && securityCode) {
-			if (role === "anggota") {
+		setIsLoading(true);
+		setError("");
+
+		joinGroup({ groupId: selectedGroup!, securityCode })
+			.then((res) => {
+				setIsLoading(false);
+				setShowModal(false);
+				setSecurityCode("");
 				router.push(`/dashboard/groups/${selectedGroup}/detect`);
-			} else {
-				router.push(`/dashboard/groups/${selectedGroup}/leader`);
-			}
-		}
+			})
+			.catch((err) => {
+				setIsLoading(false);
+				if (err.response?.status === 400) {
+					setError("Kode keamanan salah. Silakan coba lagi.");
+				} else {
+					setError("Terjadi kesalahan. Silakan coba lagi nanti.");
+				}
+			});
 	};
 
 	return (
 		<div className="max-w-3xl mx-auto mt-10">
-			<h1 className="text-2xl font-bold mb-6">Daftar Grup</h1>
+			<h1 className="text-2xl font-bold mb-6 flex items-center justify-between">
+				Daftar Grup
+				<Button
+					className="ml-4"
+					onClick={() => router.push("/dashboard/groups/create")}
+				>
+					+ Tambah Grup
+				</Button>
+			</h1>
 			<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-				{dummyGroups.map((g) => (
-					<Card key={g.id} className="p-6 flex flex-col justify-between">
-						<div>
-							<h2 className="text-xl font-semibold mb-2">{g.name}</h2>
-							<p className="text-gray-600 mb-4">{g.description}</p>
-						</div>
-						<Button
-							onClick={() => handleSelectGroup(g.id)}
-							className="mt-auto w-full"
+				{groups
+					.slice()
+					.sort((a, b) => {
+						const aJoined = a.members.includes(user?.id);
+						const bJoined = b.members.includes(user?.id);
+						if (aJoined && !bJoined) return -1;
+						if (!aJoined && bJoined) return 1;
+						return 0;
+					})
+					.map((g) => (
+						<Card
+							key={g.id}
+							className={`p-6 flex flex-col justify-between ${
+								g.members.includes(user?.id) ? "border-2 border-green-500" : ""
+							}`}
 						>
-							Masuk Grup
-						</Button>
-					</Card>
-				))}
+							<div>
+								<h2 className="text-xl font-semibold mb-2">{g.name}</h2>
+								<p className="text-gray-600 mb-4">{g.description}</p>
+							</div>
+							{g.members.includes(user?.id) ? (
+								<Button
+									onClick={() => {
+										if (user?.id === g.leaderId) {
+											router.push(`/dashboard/groups/${g.id}/leader`);
+										} else {
+											router.push(`/dashboard/groups/${g.id}/detect`);
+										}
+									}}
+									className="mt-auto w-full bg-green-500 hover:bg-green-600"
+								>
+									Akses Grup
+								</Button>
+							) : (
+								<Button
+									onClick={() => handleSelectGroup(g.id)}
+									className="mt-auto w-full"
+								>
+									Masuk Grup
+								</Button>
+							)}
+						</Card>
+					))}
 			</div>
 			{/* Modal kode keamanan */}
 			{showModal && (
@@ -63,6 +128,7 @@ export default function GroupsPage() {
 							onClick={() => {
 								setShowModal(false);
 								setSecurityCode("");
+								setError("");
 							}}
 							aria-label="Tutup"
 						>
@@ -72,6 +138,9 @@ export default function GroupsPage() {
 							Masukkan Kode Keamanan
 						</h2>
 						<form onSubmit={handleJoin} className="space-y-4">
+							{error && (
+								<div className="text-red-600 text-sm">{error}</div>
+							)}
 							<div>
 								<label className="block mb-1 font-medium">
 									Kode Keamanan
@@ -81,27 +150,16 @@ export default function GroupsPage() {
 									type="password"
 									placeholder="Kode Keamanan"
 									value={securityCode}
-									onChange={(e) =>
-										setSecurityCode(e.target.value)
-									}
+									onChange={(e) => setSecurityCode(e.target.value)}
 									required
 								/>
 							</div>
-							<div>
-								<label className="block mb-1 font-medium">
-									Masuk Sebagai
-								</label>
-								<select
-									className="w-full border rounded p-2"
-									value={role}
-									onChange={(e) => setRole(e.target.value)}
-								>
-									<option value="anggota">Anggota</option>
-									<option value="ketua">Ketua</option>
-								</select>
-							</div>
-							<Button type="submit" className="w-full">
-								Masuk
+							<Button
+								type="submit"
+								className="w-full"
+								disabled={isLoading}
+							>
+								{isLoading ? "Memproses..." : "Masuk"}
 							</Button>
 						</form>
 					</div>

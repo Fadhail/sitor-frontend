@@ -1,9 +1,9 @@
 "use client"
 
 import type React from "react"
-
 import { useEffect, useState } from "react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { getMe, updateProfile, updatePassword } from "@/service/api"
 
 export default function ProfilePage() {
   const [user, setUser] = useState<{ name: string, email: string } | null>(null)
@@ -15,58 +15,60 @@ export default function ProfilePage() {
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  
+
   useEffect(() => {
-    const userData = localStorage.getItem("user")
-    if (userData) {
-      const parsedUser = JSON.parse(userData)
-      setUser(parsedUser)
-      setName(parsedUser.name)
-      setEmail(parsedUser.email)
+    async function fetchUser() {
+      try {
+        const token = localStorage.getItem("token")
+        if (!token) {
+          setError("Not authenticated")
+          return
+        }
+        const res = await getMe(token)
+        setUser(res.data.user)
+        setName(res.data.user?.name || "")
+        setEmail(res.data.user?.email || "")
+      } catch (err: any) {
+        setError("Failed to fetch user data")
+      }
     }
+    fetchUser()
   }, [])
-  
-  const handleProfileUpdate = (e: React.FormEvent) => {
+
+  const handleProfileUpdate = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     setError("")
     setSuccess("")
-    
     try {
-      // In a real app, you would update the profile with your backend
-      // This is a mock implementation for demo purposes
-      const updatedUser = { ...user, name, email }
-      localStorage.setItem("user", JSON.stringify(updatedUser))
-      setUser(updatedUser)
+      await updateProfile({ name, email })
+      setUser((prev) => prev ? { ...prev, name, email } : { name, email })
       setSuccess("Profile updated successfully")
-    } catch {
-      setError("Failed to update profile")
+    } catch (err: any) {
+      setError(err?.response?.data?.message || "Failed to update profile")
     } finally {
       setIsLoading(false)
     }
   }
-  
-  const handlePasswordChange = (e: React.FormEvent) => {
+
+  const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     setError("")
     setSuccess("")
-    
     if (newPassword !== confirmPassword) {
       setError("New passwords do not match")
       setIsLoading(false)
       return
     }
-    
     try {
-      // In a real app, you would update the password with your backend
-      // This is a mock implementation for demo purposes
+      await updatePassword({ oldPassword: currentPassword, newPassword })
       setSuccess("Password updated successfully")
       setCurrentPassword("")
       setNewPassword("")
       setConfirmPassword("")
-    } catch {
-      setError("Failed to update password")
+    } catch (err: any) {
+      setError(err?.response?.data?.message || "Failed to update password")
     } finally {
       setIsLoading(false)
     }
@@ -93,7 +95,7 @@ export default function ProfilePage() {
               <label className="block text-sm font-medium">Name</label>
               <input
                 type="text"
-                value={name}
+                value={name ?? ""}
                 onChange={(e) => setName(e.target.value)}
                 className="mt-1 block w-full p-2 border rounded-md"
                 required
@@ -103,7 +105,7 @@ export default function ProfilePage() {
               <label className="block text-sm font-medium">Email</label>
               <input
                 type="email"
-                value={email}
+                value={email ?? ""}
                 onChange={(e) => setEmail(e.target.value)}
                 className="mt-1 block w-full p-2 border rounded-md"
                 required

@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Calendar, Download, BarChart3, PieChart } from "lucide-react"
+import { getUserDetections } from "@/service/api"
 
 interface EmotionRecord {
   timestamp: string
@@ -14,11 +15,26 @@ interface EmotionRecord {
 
 export default function ReportsPage() {
   const [emotionHistory, setEmotionHistory] = useState<EmotionRecord[]>([])
+  const [error, setError] = useState("")
 
   useEffect(() => {
-    // Load emotion history from localStorage
-    const history = JSON.parse(localStorage.getItem("emotionHistory") || "[]")
-    setEmotionHistory(history)
+    async function fetchDetections() {
+      try {
+        const res = await getUserDetections()
+        // Asumsikan response: array of { createdAt, emotion, probability }
+        const data = Array.isArray(res.data) ? res.data : res.data.detections || []
+        setEmotionHistory(
+          data.map((d: any) => ({
+            timestamp: d.createdAt || d.timestamp,
+            emotion: d.emotion,
+            probability: d.probability,
+          }))
+        )
+      } catch (err: any) {
+        setError("Failed to fetch detection history")
+      }
+    }
+    fetchDetections()
   }, [])
 
   // Calculate emotion statistics
@@ -60,7 +76,7 @@ export default function ReportsPage() {
 
   // Get emotion color
   const getEmotionColor = (emotion: string) => {
-    switch (emotion.toLowerCase()) {
+    switch (emotion?.toLowerCase()) {
       case "happy":
         return "bg-green-500"
       case "sad":
@@ -80,7 +96,7 @@ export default function ReportsPage() {
     }
   }
 
-  // Generate mock chart data
+  // Generate chart data
   const generateChartData = () => {
     const emotions = ["happy", "sad", "angry", "fearful", "disgusted", "surprised", "neutral"]
 
@@ -103,7 +119,7 @@ export default function ReportsPage() {
     )
   }
 
-  // Generate mock pie chart
+  // Generate pie chart
   const generatePieChart = () => {
     return (
       <div className="flex items-center justify-center py-8">
@@ -157,7 +173,7 @@ export default function ReportsPage() {
           Export Report
         </Button>
       </div>
-
+      {error && <div className="text-red-500">{error}</div>}
       <div className="grid gap-6 md:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
@@ -199,7 +215,6 @@ export default function ReportsPage() {
           </CardContent>
         </Card>
       </div>
-
       <Tabs defaultValue="daily" className="w-full">
         <div className="flex justify-between items-center">
           <TabsList>
@@ -214,7 +229,6 @@ export default function ReportsPage() {
             </Button>
           </div>
         </div>
-
         <TabsContent value="daily" className="mt-4">
           <Card>
             <CardHeader>
@@ -237,7 +251,6 @@ export default function ReportsPage() {
             </CardContent>
           </Card>
         </TabsContent>
-
         <TabsContent value="weekly" className="mt-4">
           <Card>
             <CardHeader>
@@ -260,7 +273,6 @@ export default function ReportsPage() {
             </CardContent>
           </Card>
         </TabsContent>
-
         <TabsContent value="monthly" className="mt-4">
           <Card>
             <CardHeader>
@@ -284,7 +296,6 @@ export default function ReportsPage() {
           </Card>
         </TabsContent>
       </Tabs>
-
       <Card>
         <CardHeader>
           <CardTitle>Detection History</CardTitle>

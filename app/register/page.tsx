@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { AlertCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { register } from "@/service/api"
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -33,13 +34,17 @@ export default function RegisterPage() {
     }
 
     try {
-      // In a real app, you would register with your backend
-      // This is a mock implementation for demo purposes
-      localStorage.setItem("isLoggedIn", "true")
-      localStorage.setItem("user", JSON.stringify({ email, name }))
-      router.push("/dashboard")
-    } catch {
-      setError("An error occurred during registration. Please try again.")
+      const response = await register({ name, email, password })
+      if (response.data && response.data.success) {
+        localStorage.setItem("isLoggedIn", "true")
+        localStorage.setItem("user", JSON.stringify(response.data.user))
+        localStorage.setItem("token", response.data.token)
+        router.push("/dashboard")
+      } else {
+        setError(response.data.message || "Registration failed")
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || "An error occurred during registration. Please try again.")
     } finally {
       setIsLoading(false)
     }
