@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -40,9 +39,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
-      {/* Sidebar for desktop */}
-      <aside className="hidden md:flex w-64 flex-col border-r bg-background">
+    <div className="min-h-screen bg-background">
+      {/* Sidebar for desktop (fixed) */}
+      <aside className="hidden md:fixed md:inset-y-0 md:left-0 md:flex md:w-64 md:flex-col md:border-r md:bg-background z-40">
         <div className="flex h-14 items-center border-b px-4">
           <Link href="/" className="flex items-center gap-2 font-semibold">
             <span className="text-xl font-bold">SITOR</span>
@@ -94,7 +93,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </aside>
 
       {/* Mobile header and menu */}
-      <div className="flex flex-col flex-1">
+      <div className="md:pl-64 flex flex-col min-h-screen">
         <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 md:hidden">
           <Button variant="outline" size="icon" onClick={() => setIsMobileMenuOpen(true)}>
             <Menu className="h-5 w-5" />
@@ -171,7 +170,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         )}
 
-        <main className="flex-1">{children}</main>
+        {/* Main content, sidebar fixed */}
+        <main className="relative flex-1 p-4 bg-background">
+          {children}
+        </main>
       </div>
     </div>
   )

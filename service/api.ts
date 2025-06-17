@@ -71,4 +71,23 @@ export async function getUserDetections() {
   return api.get("/detections", { headers: { Authorization: `Bearer ${token}` } });
 }
 
+export async function getDashboardSummary() {
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : "";
+  return api.get("/me/summary", { headers: { Authorization: `Bearer ${token}` } });
+}
+
+export async function deleteGroup(groupId: string) {
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : "";
+  return api.delete(`/groups/${groupId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export async function leaveGroup(groupId: string) {
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : "";
+  return api.post(`/groups/${groupId}/leave`, {}, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
 // Tidak perlu parameter role pada register/login, semua user netral

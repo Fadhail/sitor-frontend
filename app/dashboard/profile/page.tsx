@@ -1,27 +1,32 @@
 "use client"
 
-import type React from "react"
 import { useEffect, useState } from "react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { getMe, updateProfile, updatePassword } from "@/service/api"
+import { ProfileForm } from "@/components/profile/ProfileForm"
+import { PasswordForm } from "@/components/profile/PasswordForm"
 
 export default function ProfilePage() {
   const [user, setUser] = useState<{ name: string, email: string } | null>(null)
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
+  const [profileError, setProfileError] = useState("")
+  const [profileSuccess, setProfileSuccess] = useState("")
+  const [profileLoading, setProfileLoading] = useState(false)
+
   const [currentPassword, setCurrentPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
-  const [error, setError] = useState("")
-  const [success, setSuccess] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
+  const [passwordError, setPasswordError] = useState("")
+  const [passwordSuccess, setPasswordSuccess] = useState("")
+  const [passwordLoading, setPasswordLoading] = useState(false)
 
   useEffect(() => {
     async function fetchUser() {
       try {
         const token = localStorage.getItem("token")
         if (!token) {
-          setError("Not authenticated")
+          setProfileError("Not authenticated")
           return
         }
         const res = await getMe(token)
@@ -29,143 +34,95 @@ export default function ProfilePage() {
         setName(res.data.user?.name || "")
         setEmail(res.data.user?.email || "")
       } catch (err: any) {
-        setError("Failed to fetch user data")
+        setProfileError("Failed to fetch user data")
       }
     }
     fetchUser()
   }, [])
 
+  const handleProfileChange = (field: "name" | "email", value: string) => {
+    if (field === "name") setName(value)
+    if (field === "email") setEmail(value)
+  }
+
   const handleProfileUpdate = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsLoading(true)
-    setError("")
-    setSuccess("")
+    setProfileLoading(true)
+    setProfileError("")
+    setProfileSuccess("")
     try {
       await updateProfile({ name, email })
       setUser((prev) => prev ? { ...prev, name, email } : { name, email })
-      setSuccess("Profile updated successfully")
+      setProfileSuccess("Profile updated successfully")
     } catch (err: any) {
-      setError(err?.response?.data?.message || "Failed to update profile")
+      setProfileError(err?.response?.data?.message || "Failed to update profile")
     } finally {
-      setIsLoading(false)
+      setProfileLoading(false)
     }
   }
 
-  const handlePasswordChange = async (e: React.FormEvent) => {
+  const handlePasswordChange = (field: "currentPassword" | "newPassword" | "confirmPassword", value: string) => {
+    if (field === "currentPassword") setCurrentPassword(value)
+    if (field === "newPassword") setNewPassword(value)
+    if (field === "confirmPassword") setConfirmPassword(value)
+  }
+
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsLoading(true)
-    setError("")
-    setSuccess("")
+    setPasswordLoading(true)
+    setPasswordError("")
+    setPasswordSuccess("")
     if (newPassword !== confirmPassword) {
-      setError("New passwords do not match")
-      setIsLoading(false)
+      setPasswordError("New passwords do not match")
+      setPasswordLoading(false)
       return
     }
     try {
       await updatePassword({ oldPassword: currentPassword, newPassword })
-      setSuccess("Password updated successfully")
+      setPasswordSuccess("Password updated successfully")
       setCurrentPassword("")
       setNewPassword("")
       setConfirmPassword("")
     } catch (err: any) {
-      setError(err?.response?.data?.message || "Failed to update password")
+      setPasswordError(err?.response?.data?.message || "Failed to update password")
     } finally {
-      setIsLoading(false)
+      setPasswordLoading(false)
     }
   }
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Account Settings</h1>
-        <p className="text-muted-foreground">
-          Manage your account settings and preferences
-        </p>
+    <div className="container mx-auto py-8 max-w-2xl">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold mb-1">Account Settings</h1>
+        <p className="text-muted-foreground text-base">Manage your account settings and preferences</p>
       </div>
-      <Tabs defaultValue="profile" className="w-full max-w-xl mx-auto">
-        <TabsList>
+      <Tabs defaultValue="profile" className="w-full">
+        <TabsList className="mb-4">
           <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="password">Change Password</TabsTrigger>
         </TabsList>
         <TabsContent value="profile">
-          <form onSubmit={handleProfileUpdate} className="space-y-4">
-            {error && <div className="text-red-500">{error}</div>}
-            {success && <div className="text-green-500">{success}</div>}
-            <div>
-              <label className="block text-sm font-medium">Name</label>
-              <input
-                type="text"
-                value={name ?? ""}
-                onChange={(e) => setName(e.target.value)}
-                className="mt-1 block w-full p-2 border rounded-md"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium">Email</label>
-              <input
-                type="email"
-                value={email ?? ""}
-                onChange={(e) => setEmail(e.target.value)}
-                className="mt-1 block w-full p-2 border rounded-md"
-                required
-              />
-            </div>
-            <div>
-              <button
-                type="submit"
-                className="w-full bg-blue-600 text-white p-2 rounded-md"
-                disabled={isLoading}
-              >
-                {isLoading ? "Updating..." : "Update Profile"}
-              </button>
-            </div>
-          </form>
+          <ProfileForm
+            name={name}
+            email={email}
+            isLoading={profileLoading}
+            error={profileError}
+            success={profileSuccess}
+            onChange={handleProfileChange}
+            onSubmit={handleProfileUpdate}
+          />
         </TabsContent>
         <TabsContent value="password">
-          <form onSubmit={handlePasswordChange} className="space-y-4">
-            {error && <div className="text-red-500">{error}</div>}
-            {success && <div className="text-green-500">{success}</div>}
-            <div>
-              <label className="block text-sm font-medium">Current Password</label>
-              <input
-                type="password"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                className="mt-1 block w-full p-2 border rounded-md"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium">New Password</label>
-              <input
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                className="mt-1 block w-full p-2 border rounded-md"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium">Confirm New Password</label>
-              <input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="mt-1 block w-full p-2 border rounded-md"
-                required
-              />
-            </div>
-            <div>
-              <button
-                type="submit"
-                className="w-full bg-blue-600 text-white p-2 rounded-md"
-                disabled={isLoading}
-              >
-                {isLoading ? "Changing..." : "Change Password"}
-              </button>
-            </div>
-          </form>
+          <PasswordForm
+            currentPassword={currentPassword}
+            newPassword={newPassword}
+            confirmPassword={confirmPassword}
+            isLoading={passwordLoading}
+            error={passwordError}
+            success={passwordSuccess}
+            onChange={handlePasswordChange}
+            onSubmit={handlePasswordSubmit}
+          />
         </TabsContent>
       </Tabs>
     </div>
