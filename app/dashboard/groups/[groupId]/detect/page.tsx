@@ -17,6 +17,9 @@ interface FaceApiWindow extends Window {
 }
 
 export default function DetectPage() {
+  // Ambil groupId dari URL (harus di awal komponen)
+  const groupId = typeof window !== 'undefined' ? window.location.pathname.split("/").find((v, i, arr) => arr[i - 1] === "groups") || "default" : "default";
+
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [isCameraActive, setIsCameraActive] = useState(false)
@@ -27,6 +30,7 @@ export default function DetectPage() {
   const [faceApiLoaded, setFaceApiLoaded] = useState(false)
   const [isCameraOn, setIsCameraOn] = useState(false)
   const [allDetections, setAllDetections] = useState<Detection[]>([])
+  const [detectionHistory, setDetectionHistory] = useState<Detection[]>([])
 
   // State untuk modal notifikasi sesi berakhir
   const [showSessionEndedModal, setShowSessionEndedModal] = useState(false);
@@ -62,10 +66,17 @@ export default function DetectPage() {
   // Pastikan deteksi berjalan saat isDetecting berubah ke true
   useEffect(() => {
     if (isDetecting) {
-      detectEmotions()
+      detectEmotions();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDetecting])
+  }, [isDetecting]);
+
+  // Update detectionHistory setiap kali detectionResults berubah
+  useEffect(() => {
+    if (isDetecting && detectionResults.length > 0) {
+      setDetectionHistory((prev) => [...prev, ...detectionResults]);
+    }
+  }, [detectionResults, isDetecting]);
 
   // Aktifkan video dan deteksi saat user klik "Aktifkan Kamera"
   useEffect(() => {
@@ -79,36 +90,70 @@ export default function DetectPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isCameraActive, isModelLoaded])
 
-  // Kirim data deteksi emosi ke backend secara realtime setiap 2 detik
+  // Reset detectionHistory saat groupId/sessionActive berubah (misal sesi baru dimulai)
   useEffect(() => {
-    if (!isDetecting || !isCameraOn) return;
+    setDetectionHistory([]);
+  }, [groupId, sessionActive]);
+
+  // Ref untuk detectionHistory agar interval selalu dapat data terbaru
+  const detectionHistoryRef = useRef<Detection[]>([]);
+  useEffect(() => { detectionHistoryRef.current = detectionHistory; }, [detectionHistory]);
+
+  // Kirim data deteksi emosi ke backend secara realtime setiap 5 detik
+  useEffect(() => {
+    if (!isDetecting || !isCameraOn || sessionActive !== true) return;
     const groupId = window.location.pathname.split("/").find((v, i, arr) => arr[i - 1] === "groups") || "default";
     const interval = setInterval(() => {
-      if (detectionResults.length > 0) {
-        // Ambil distribusi emosi terbaru
+      const history = detectionHistoryRef.current;
+      if (history.length > 0) {
         const emotionCounts: Record<string, number> = {
           neutral: 0, happy: 0, sad: 0, angry: 0, surprised: 0, disgusted: 0
         };
-        detectionResults.forEach((d) => {
+        history.forEach((d) => {
           if (emotionCounts[d.expression] !== undefined) {
             emotionCounts[d.expression] += 1;
           }
         });
-        const total = detectionResults.length;
+        const total = history.length;
         const emotionPercents: Record<string, number> = {};
         Object.keys(emotionCounts).forEach((k) => {
           emotionPercents[k] = total > 0 ? Math.round((emotionCounts[k] / total) * 100) : 0;
         });
         createDetection({ groupId, emotions: emotionPercents }).catch(() => {});
+        setDetectionHistory([]); // Reset history setelah kirim
       }
-    }, 2000); // interval 2 detik
+    }, 5000);
     return () => clearInterval(interval);
-  }, [isDetecting, isCameraOn, detectionResults]);
+  }, [isDetecting, isCameraOn, sessionActive, groupId]);
 
-  // Polling status sesi grup dan kamera
+  // Otomatis aktifkan kamera jika sessionActive berubah ke true (sesi baru dimulai)
+  useEffect(() => {
+    if (sessionActive === true && !isCameraActive) {
+      setIsCameraActive(true);
+    }
+  }, [sessionActive]);
+
+  // Kirim status kamera aktif ke backend saat pertama kali kamera dinyalakan
+  useEffect(() => {
+    if (isCameraActive && isCameraOn) {
+      const groupId = window.location.pathname.split("/").find((v, i, arr) => arr[i - 1] === "groups") || "default";
+      updateCameraStatus({ groupId, isActive: true }).catch(() => {});
+    }
+  }, [isCameraActive, isCameraOn]);
+
+  // Kirim status kamera nonaktif ke backend saat kamera dimatikan
+  useEffect(() => {
+    if (!isCameraActive && !isCameraOn) {
+      const groupId = window.location.pathname.split("/").find((v, i, arr) => arr[i - 1] === "groups") || "default";
+      updateCameraStatus({ groupId, isActive: false }).catch(() => {});
+    }
+  }, [isCameraActive, isCameraOn]);
+
+  // Handle perubahan status sesi grup dari backend
   useEffect(() => {
     if (showSessionEndedModal) return;
-    const groupId = window.location.pathname.split("/").find((v, i, arr) => arr[i - 1] === "groups") || "default";
+    // DEBUG: log groupId setiap polling
+    console.log('[Polling] Checking session for groupId:', groupId);
     let interval: NodeJS.Timeout;
     let notified = false;
     async function checkSession() {
@@ -155,7 +200,14 @@ export default function DetectPage() {
       clearInterval(interval);
       setIsDetecting(false); // hentikan deteksi saat unmount
     };
-  }, [showSessionEndedModal]);
+  }, [showSessionEndedModal, groupId]);
+
+  // Reset state notifikasi sesi berakhir dan error saat halaman dibuka atau groupId berubah
+  useEffect(() => {
+    setShowSessionEndedModal(false);
+    setSessionActive(null);
+    setCameraStatusError(null);
+  }, [groupId]);
 
   const loadModels = async () => {
     try {
@@ -206,15 +258,15 @@ export default function DetectPage() {
         videoRef.current.srcObject = stream
         setIsCameraOn(true)
         setIsDetecting(true)
-
+        setCameraStatusError(null); // Reset error jika berhasil
         // Kirim status kamera aktif ke backend
         const groupId = window.location.pathname.split("/").find((v, i, arr) => arr[i - 1] === "groups") || "default"
         updateCameraStatus({ groupId, isActive: true }).catch(() => {})
       }
-    } catch (err) {
-      console.error("Error accessing camera:", err)
-      setError("Unable to access camera. Please ensure you've granted camera permissions.")
-      setIsCameraOn(false)
+    } catch (e) {
+      setCameraStatusError("Gagal mengakses kamera. Pastikan izin kamera sudah diberikan dan tidak ada aplikasi lain yang menggunakan kamera.");
+      setIsCameraOn(false);
+      setIsDetecting(false);
     }
   }
 
@@ -469,19 +521,19 @@ export default function DetectPage() {
 
   // Kamera aktif: tampilkan layout dua kartu
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center py-8 px-2 md:px-0">
+    <div className="min-h-screen flex flex-col items-center justify-center py-4 px-1 sm:px-2 md:px-0">
       {cameraStatusError && (
-        <div className="mb-4 text-red-600 font-semibold text-center">{cameraStatusError}</div>
+        <div className="mb-4 text-red-600 font-semibold text-center text-sm sm:text-base">{cameraStatusError}</div>
       )}
-      <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-8">
+      <div className="w-full max-w-4xl grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-8">
         {/* Kartu Kamera & Deteksi */}
-        <Card className="shadow-xl border-2 border-primary/10 flex flex-col items-center p-0">
+        <Card className="shadow-xl border-2 border-primary/10 flex flex-col items-center p-0 w-full">
           <CardHeader className="w-full pb-2 flex flex-col items-center justify-center">
-            <CardTitle className="text-xl font-extrabold text-gray-900 tracking-tight text-center w-full">Kamera & Deteksi</CardTitle>
-            <CardDescription className="text-gray-500 text-center w-full mt-1">Pastikan wajah Anda terlihat jelas di kamera.</CardDescription>
+            <CardTitle className="text-lg sm:text-xl font-extrabold text-gray-900 tracking-tight text-center w-full">Kamera & Deteksi</CardTitle>
+            <CardDescription className="text-gray-500 text-center w-full mt-1 text-xs sm:text-sm">Pastikan wajah Anda terlihat jelas di kamera.</CardDescription>
           </CardHeader>
           <CardContent className="w-full flex flex-col items-center">
-            <div className="relative w-full max-w-md aspect-video bg-gradient-to-br from-gray-200 to-gray-100 rounded-2xl overflow-hidden mb-4 shadow-lg border border-gray-200 flex items-center justify-center">
+            <div className="relative w-full max-w-xs sm:max-w-md aspect-video bg-gradient-to-br from-gray-200 to-gray-100 rounded-2xl overflow-hidden mb-4 shadow-lg border border-gray-200 flex items-center justify-center">
               <video
                 ref={videoRef}
                 className="w-full h-full object-cover rounded-2xl border-4 border-primary/30 shadow-lg transition-all duration-300"
@@ -496,26 +548,26 @@ export default function DetectPage() {
               />
               {!isCameraOn && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-100/80 animate-fade-in">
-                  <Camera className="w-20 h-20 text-gray-300 mb-4" />
-                  <span className="text-gray-400 text-lg font-semibold">Kamera belum aktif</span>
+                  <Camera className="w-16 h-16 sm:w-20 sm:h-20 text-gray-300 mb-4" />
+                  <span className="text-gray-400 text-base sm:text-lg font-semibold">Kamera belum aktif</span>
                 </div>
               )}
             </div>
-            <div className="flex flex-row gap-2 w-full justify-center mt-2">
+            <div className="flex flex-col sm:flex-row gap-2 w-full justify-center mt-2">
               <Button
                 variant="destructive"
                 onClick={() => {
                   setIsCameraActive(false);
                   stopVideo();
                 }}
-                className="px-6 py-2 text-base font-semibold rounded-xl shadow"
+                className="px-4 py-2 sm:px-6 sm:py-2 text-sm sm:text-base font-semibold rounded-xl shadow"
               >
                 Hentikan Kamera
               </Button>
               <Button
                 variant="outline"
                 onClick={captureScreenshot}
-                className="px-6 py-2 text-base font-semibold rounded-xl shadow"
+                className="px-4 py-2 sm:px-6 sm:py-2 text-sm sm:text-base font-semibold rounded-xl shadow"
                 disabled={!isCameraOn}
               >
                 <Download className="mr-2" />
@@ -525,42 +577,42 @@ export default function DetectPage() {
           </CardContent>
         </Card>
         {/* Kartu Hasil Deteksi Emosi */}
-        <Card className="shadow-xl border-2 border-primary/10 flex flex-col items-center p-0">
+        <Card className="shadow-xl border-2 border-primary/10 flex flex-col items-center p-0 w-full">
           <CardHeader className="w-full pb-2 flex flex-col items-center justify-center">
-            <CardTitle className="text-xl font-extrabold text-gray-900 tracking-tight text-center w-full">Hasil Deteksi Emosi</CardTitle>
-            <CardDescription className="text-gray-500 text-center w-full mt-1">Visualisasi emosi utama & probabilitas.</CardDescription>
+            <CardTitle className="text-lg sm:text-xl font-extrabold text-gray-900 tracking-tight text-center w-full">Hasil Deteksi Emosi</CardTitle>
+            <CardDescription className="text-gray-500 text-center w-full mt-1 text-xs sm:text-sm">Visualisasi emosi utama & probabilitas.</CardDescription>
           </CardHeader>
-          <CardContent className="w-full flex flex-col items-center min-h-[320px] justify-center">
+          <CardContent className="w-full flex flex-col items-center min-h-[220px] sm:min-h-[320px] justify-center">
             {detectionResults.length === 0 && (
-              <div className="flex flex-col items-center justify-center h-full min-h-[180px] animate-fade-in">
-                <Loader2 className="w-8 h-8 text-primary animate-spin mb-2" />
-                <div className="text-gray-400 text-base font-medium">Mendeteksi wajah dan emosi...</div>
+              <div className="flex flex-col items-center justify-center h-full min-h-[120px] sm:min-h-[180px] animate-fade-in">
+                <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 text-primary animate-spin mb-2" />
+                <div className="text-gray-400 text-sm sm:text-base font-medium">Mendeteksi wajah dan emosi...</div>
               </div>
             )}
             {detectionResults.length > 0 && (
-              <div className="w-full flex flex-col gap-6 items-center animate-fade-in">
-                <div className="flex flex-row gap-4 w-full justify-center">
+              <div className="w-full flex flex-col gap-4 sm:gap-6 items-center animate-fade-in">
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 w-full justify-center">
                   {detectionResults.slice(0, 2).map((result, idx) => (
                     <div
                       key={idx}
-                      className={`flex flex-col items-center justify-center p-6 rounded-2xl shadow-md border bg-white min-w-[140px] max-w-[180px] transition-all duration-200`}
+                      className={`flex flex-col items-center justify-center p-4 sm:p-6 rounded-2xl shadow-md border bg-white min-w-[100px] sm:min-w-[140px] max-w-[140px] sm:max-w-[180px] transition-all duration-200`}
                     >
-                      <div className="text-3xl font-extrabold capitalize mb-1 drop-shadow-sm tracking-wide text-gray-800 text-center">
+                      <div className="text-2xl sm:text-3xl font-extrabold capitalize mb-1 drop-shadow-sm tracking-wide text-gray-800 text-center">
                         {result.expression}
                       </div>
-                      <div className="text-lg text-gray-700 font-semibold text-center">
+                      <div className="text-base sm:text-lg text-gray-700 font-semibold text-center">
                         {Math.round(result.probability * 100)}%
                       </div>
                     </div>
                   ))}
                 </div>
-                <div className="w-full grid grid-cols-2 gap-3">
+                <div className="w-full grid grid-cols-2 gap-2 sm:gap-3">
                   {detectionResults.slice(2, 6).map((result, idx) => (
                     <div
                       key={idx}
-                      className={`flex flex-col items-center justify-center p-3 rounded-xl shadow border bg-white transition-all duration-200`}
+                      className={`flex flex-col items-center justify-center p-2 sm:p-3 rounded-xl shadow border bg-white transition-all duration-200`}
                     >
-                      <div className="text-base font-bold capitalize mb-1 text-gray-700 text-center">
+                      <div className="text-xs sm:text-base font-bold capitalize mb-1 text-gray-700 text-center">
                         {result.expression}
                       </div>
                       <div className="text-xs text-gray-500 font-semibold text-center">
@@ -574,7 +626,6 @@ export default function DetectPage() {
           </CardContent>
         </Card>
       </div>
-
       {/* Modal sesi berakhir */}
       {showSessionEndedModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
