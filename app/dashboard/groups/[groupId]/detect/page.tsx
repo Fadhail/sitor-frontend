@@ -2,14 +2,10 @@
 
 import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Progress } from "@/components/ui/progress"
-import { Camera, CameraOff, Download, AlertTriangle, Loader2 } from "lucide-react"
-import Script from "next/script"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Camera, Download, Loader2 } from "lucide-react"
 import { createDetection } from "@/service/detections"
 import { updateCameraStatus } from "@/service/api"
-import dynamic from "next/dynamic"
 
 interface Detection {
   expression: string
@@ -28,22 +24,29 @@ export default function DetectPage() {
   const [isDetecting, setIsDetecting] = useState(false)
   const [detectionResults, setDetectionResults] = useState<Detection[]>([])
   const [error, setError] = useState<string | null>(null)
-  const [loadingProgress, setLoadingProgress] = useState(0)
   const [faceApiLoaded, setFaceApiLoaded] = useState(false)
   const [isCameraOn, setIsCameraOn] = useState(false)
-  const [landmarksDrawn, setLandmarksDrawn] = useState(false)
   const [allDetections, setAllDetections] = useState<Detection[]>([])
+
+  // State untuk modal notifikasi sesi berakhir
+  const [showSessionEndedModal, setShowSessionEndedModal] = useState(false);
+  // State untuk status sesi grup
+  const [sessionActive, setSessionActive] = useState<boolean | null>(null);
+  const [cameraStatusError, setCameraStatusError] = useState<string | null>(null);
 
   // Inject face-api.js from CDN if not loaded
   useEffect(() => {
-    // @ts-ignore
+    // @ts-expect-error
     if (!window.faceapi) {
-      const script = document.createElement("script")
-      script.src = "https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"
-      script.async = true
-      script.onload = () => setFaceApiLoaded(true)
-      script.onerror = () => setError("Gagal memuat library face-api.js. Cek koneksi internet atau CDN.")
-      document.body.appendChild(script)
+      if (!document.getElementById("faceapi-cdn")) {
+        const script = document.createElement("script");
+        script.id = "faceapi-cdn";
+        script.src = "https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js";
+        script.async = true;
+        script.onload = () => setFaceApiLoaded(true);
+        script.onerror = () => setError("Gagal memuat library face-api.js. Cek koneksi internet atau CDN.");
+        document.body.appendChild(script);
+      }
     } else {
       setFaceApiLoaded(true)
     }
@@ -102,6 +105,58 @@ export default function DetectPage() {
     return () => clearInterval(interval);
   }, [isDetecting, isCameraOn, detectionResults]);
 
+  // Polling status sesi grup dan kamera
+  useEffect(() => {
+    if (showSessionEndedModal) return;
+    const groupId = window.location.pathname.split("/").find((v, i, arr) => arr[i - 1] === "groups") || "default";
+    let interval: NodeJS.Timeout;
+    let notified = false;
+    async function checkSession() {
+      try {
+        setCameraStatusError(null);
+        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080";
+        const token = typeof window !== "undefined" ? localStorage.getItem("token") : "";
+        const headers: Record<string, string> = {};
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+        const res = await fetch(`${backendUrl}/api/groups/${groupId}/camera-status`, { headers });
+        if (res.status === 401) {
+          setCameraStatusError('Akses tidak valid. Silakan login ulang.');
+          localStorage.removeItem("user");
+          localStorage.removeItem("token");
+          window.location.href = "/login";
+          return;
+        }
+        if (res.status === 404 || res.status === 410) {
+          setSessionActive(false);
+          setCameraStatusError('Sesi grup telah diakhiri oleh ketua. Semua user disconnect.');
+          if (!notified) {
+            notified = true;
+            setIsCameraActive(false);
+            stopVideo();
+            setShowSessionEndedModal(true);
+          }
+        } else {
+          setSessionActive(true);
+          setCameraStatusError(null);
+          const data = await res.json();
+          if (Array.isArray(data.statuses) && data.statuses.length === 0 && !notified) {
+            notified = true;
+            setIsCameraActive(false);
+            stopVideo();
+            setShowSessionEndedModal(true);
+          }
+        }
+      } catch (err) {
+        setCameraStatusError('Gagal mengambil status kamera.');
+      }
+    }
+    interval = setInterval(checkSession, 2000);
+    return () => {
+      clearInterval(interval);
+      setIsDetecting(false); // hentikan deteksi saat unmount
+    };
+  }, [showSessionEndedModal]);
+
   const loadModels = async () => {
     try {
       const faceapi = (window as FaceApiWindow).faceapi
@@ -110,28 +165,18 @@ export default function DetectPage() {
         return
       }
 
-      setLoadingProgress(10)
-
       // Load models sequentially and update progress
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (faceapi as any).nets.tinyFaceDetector.load("/models")
-      setLoadingProgress(25)
-
       // Load SSD MobileNet as fallback
       try {
         await (faceapi as any).nets.ssdMobilenetv1.load("/models")
       } catch (ssdError) {
         console.warn('[DEBUG] SsdMobilenetv1 failed to load:', ssdError)
       }
-      setLoadingProgress(40)
       await (faceapi as any).nets.faceLandmark68Net.load("/models")
-      setLoadingProgress(70)
       await (faceapi as any).nets.faceRecognitionNet.load("/models")
-      setLoadingProgress(85)
       await (faceapi as any).nets.faceExpressionNet.load("/models")
-      setLoadingProgress(100)
-
-      const landmarkModel = (faceapi as any).nets.faceLandmark68Net
 
       setIsModelLoaded(true)
     } catch (err) {
@@ -201,7 +246,6 @@ export default function DetectPage() {
       const ctx = canvasRef.current.getContext('2d');
       if (ctx) ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
     }
-    setLandmarksDrawn(false)
 
     // Kirim status kamera nonaktif ke backend
     const groupId = window.location.pathname.split("/").find((v, i, arr) => arr[i - 1] === "groups") || "default"
@@ -232,6 +276,11 @@ export default function DetectPage() {
       })
     }
     setAllDetections([]) // reset setelah kirim
+
+    // Notifikasi jika sesi sudah diakhiri (otomatis)
+    if (sessionActive === false) {
+      setShowSessionEndedModal(true);
+    }
   }
 
   const detectEmotions = async () => {
@@ -320,13 +369,12 @@ export default function DetectPage() {
             })
           }
           ctx.restore()
-          setLandmarksDrawn(true)
         }
 
         // Extract and store detection results
-        const newDetections = (detections as any[]).map((det: any) => ({
-          expression: det.expressions.asSortedArray()[0]?.expression || "neutral",
-          probability: det.expressions.asSortedArray()[0]?.probability || 0
+        const newDetections = (detections as unknown[]).map((det: unknown) => ({
+          expression: (det as any).expressions.asSortedArray()[0]?.expression || "neutral",
+          probability: (det as any).expressions.asSortedArray()[0]?.probability || 0
         }))
 
         setDetectionResults(newDetections)
@@ -364,28 +412,6 @@ export default function DetectPage() {
     return { expression, count: max };
   }
 
-  // Helper: Warna background emosi (modern, gradient)
-  function getEmotionColor(emotion: string) {
-    switch (emotion.toLowerCase()) {
-      case "happy":
-        return "bg-gradient-to-br from-yellow-400 to-green-400";
-      case "sad":
-        return "bg-gradient-to-br from-blue-400 to-blue-600";
-      case "angry":
-        return "bg-gradient-to-br from-red-400 to-red-600";
-      case "fearful":
-        return "bg-gradient-to-br from-purple-400 to-purple-600";
-      case "disgusted":
-        return "bg-gradient-to-br from-lime-400 to-yellow-500";
-      case "surprised":
-        return "bg-gradient-to-br from-pink-400 to-pink-600";
-      case "neutral":
-        return "bg-gradient-to-br from-gray-300 to-gray-400";
-      default:
-        return "bg-gradient-to-br from-gray-200 to-gray-300";
-    }
-  }
-
   // Helper: Screenshot
   function captureScreenshot() {
     if (!canvasRef.current) return;
@@ -398,6 +424,18 @@ export default function DetectPage() {
 
   // Initial State: Kamera belum aktif
   if (!isCameraActive) {
+    // Render modal sesi berakhir jika sessionActive === false atau showSessionEndedModal true
+    if (sessionActive === false || showSessionEndedModal) {
+      return (
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="bg-white rounded-2xl shadow-2xl p-10 max-w-xl w-full flex flex-col items-center gap-6">
+            <h2 className="text-2xl font-bold text-red-600 mb-2">Sesi Telah Diakhiri</h2>
+            <p className="text-gray-700 text-center">Sesi deteksi emosi pada grup ini telah diakhiri oleh ketua grup. Silakan hubungi ketua untuk memulai sesi baru.</p>
+            <Button className="mt-4 px-6 py-2" onClick={() => window.location.href = '/dashboard'}>Kembali ke Dashboard</Button>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="w-full max-w-xl flex flex-col items-center justify-center bg-white rounded-2xl shadow-2xl p-10 gap-6">
@@ -416,9 +454,25 @@ export default function DetectPage() {
     )
   }
 
+  // Render modal sesi berakhir jika sessionActive === false atau showSessionEndedModal true
+  if (sessionActive === false || showSessionEndedModal) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="bg-white rounded-2xl shadow-2xl p-10 max-w-xl w-full flex flex-col items-center gap-6">
+          <h2 className="text-2xl font-bold text-red-600 mb-2">Sesi Telah Diakhiri</h2>
+          <p className="text-gray-700 text-center">Sesi deteksi emosi pada grup ini telah diakhiri oleh ketua grup. Silakan hubungi ketua untuk memulai sesi baru.</p>
+          <Button className="mt-4 px-6 py-2" onClick={() => window.location.href = '/dashboard'}>Kembali ke Dashboard</Button>
+        </div>
+      </div>
+    );
+  }
+
   // Kamera aktif: tampilkan layout dua kartu
   return (
     <div className="min-h-screen flex flex-col items-center justify-center py-8 px-2 md:px-0">
+      {cameraStatusError && (
+        <div className="mb-4 text-red-600 font-semibold text-center">{cameraStatusError}</div>
+      )}
       <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-8">
         {/* Kartu Kamera & Deteksi */}
         <Card className="shadow-xl border-2 border-primary/10 flex flex-col items-center p-0">
@@ -520,6 +574,17 @@ export default function DetectPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Modal sesi berakhir */}
+      {showSessionEndedModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full flex flex-col items-center gap-4 animate-fade-in">
+            <h2 className="text-2xl font-bold text-red-600 mb-2">Sesi Telah Diakhiri</h2>
+            <p className="text-gray-700 text-center">Sesi deteksi emosi pada grup ini telah diakhiri oleh ketua grup. Silakan hubungi ketua untuk memulai sesi baru.</p>
+            <Button className="mt-4 px-6 py-2" onClick={() => window.location.href = '/dashboard'}>Kembali ke Dashboard</Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

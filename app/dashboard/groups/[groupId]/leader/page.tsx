@@ -29,8 +29,13 @@ export default function LeaderDashboardPage({ params }: { params: Promise<{ grou
   const [data, setData] = useState<Detection[]>([]);
   const [isLeader, setIsLeader] = useState<boolean | null>(null);
 
-  // State untuk status kamera
+  // State untuk status sesi grup
+  const [sessionActive, setSessionActive] = useState<boolean | null>(null);
   const [cameraStatus, setCameraStatus] = useState<Record<string, boolean>>({});
+  const [cameraStatusError, setCameraStatusError] = useState<string | null>(null);
+
+  // Tambahkan state dan useEffect untuk riwayat sesi
+  const [history, setHistory] = useState<any[]>([]);
 
   const user = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("user") || "null") : null;
 
@@ -66,10 +71,11 @@ export default function LeaderDashboardPage({ params }: { params: Promise<{ grou
     };
   }, [groupId]);
 
-  // Polling status kamera
+  // Polling status kamera & status sesi
   useEffect(() => {
     let isMounted = true;
     const fetchCameraStatus = () => {
+      setCameraStatusError(null);
       getCameraStatus(groupId)
         .then((res) => {
           if (!isMounted) return;
@@ -79,10 +85,19 @@ export default function LeaderDashboardPage({ params }: { params: Promise<{ grou
             statusMap[s.userId] = s.isActive;
           });
           setCameraStatus(statusMap);
+          setSessionActive(true);
         })
-        .catch(() => {
+        .catch((err) => {
           if (!isMounted) return;
           setCameraStatus({});
+          if (err?.response?.status === 410) {
+            setSessionActive(false);
+            setCameraStatusError('Sesi grup telah diakhiri oleh ketua. Semua user disconnect.');
+          } else if (err?.response?.status === 401) {
+            setCameraStatusError('Akses tidak valid. Silakan login ulang.');
+          } else {
+            setCameraStatusError('Gagal mengambil status kamera.');
+          }
         });
     };
     fetchCameraStatus();
@@ -91,6 +106,23 @@ export default function LeaderDashboardPage({ params }: { params: Promise<{ grou
       isMounted = false;
       clearInterval(interval);
     };
+  }, [groupId]);
+
+  // Ambil riwayat sesi
+  useEffect(() => {
+    let isMounted = true;
+    import("@/service/api").then(api => {
+      api.getDetectionHistory(groupId)
+        .then(res => {
+          if (!isMounted) return;
+          setHistory(res.data.history || []);
+        })
+        .catch(() => {
+          if (!isMounted) return;
+          setHistory([]);
+        });
+    });
+    return () => { isMounted = false; };
   }, [groupId]);
 
   // Statistik metrik utama
@@ -127,9 +159,42 @@ export default function LeaderDashboardPage({ params }: { params: Promise<{ grou
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
           <BarChart3 className="w-7 h-7 text-[#018786]" /> Dashboard Ketua Grup
         </h1>
-        <Button className="bg-[#018786] hover:bg-[#016e6e] text-white px-6 py-3 rounded-lg shadow font-semibold">
-          Mulai Deteksi Baru
-        </Button>
+        <div className="flex flex-row gap-2">
+          <Button
+            className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg shadow font-semibold"
+            onClick={async () => {
+              try {
+                const token = typeof window !== "undefined" ? localStorage.getItem("token") : "";
+                const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080";
+                await fetch(`${backendUrl}/api/groups/${groupId}/end-session`, {
+                  method: 'POST',
+                  headers: { 'Authorization': `Bearer ${token}` }
+                });
+                alert('Sesi grup telah diakhiri. Semua user akan disconnect.');
+                setSessionActive(false);
+              } catch (err) {
+                alert('Gagal mengakhiri sesi. Silakan coba lagi.');
+              }
+            }}
+          >
+            Akhiri Sesi
+          </Button>
+          <Button
+            className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg shadow font-semibold"
+            onClick={async () => {
+              try {
+                await import("@/service/api").then(api => api.startSession(groupId));
+                setSessionActive(true);
+                alert('Sesi baru berhasil dimulai!');
+              } catch (err) {
+                alert('Gagal memulai sesi baru. Silakan coba lagi.');
+              }
+            }}
+            disabled={sessionActive === true}
+          >
+            Mulai Sesi Baru
+          </Button>
+        </div>
       </div>
       {/* Kartu metrik utama */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
@@ -184,6 +249,9 @@ export default function LeaderDashboardPage({ params }: { params: Promise<{ grou
       {/* Aktivitas terkini dengan status dan emosi realtime */}
       <div className="bg-white rounded-xl shadow-sm p-6">
         <h2 className="text-lg font-semibold mb-4">Aktivitas Deteksi Terkini</h2>
+        {cameraStatusError && (
+          <div className="mb-4 text-red-600 font-semibold text-center">{cameraStatusError}</div>
+        )}
         {data.length === 0 ? (
           <div className="text-gray-500 text-center">Belum ada aktivitas deteksi.</div>
         ) : (
@@ -209,6 +277,45 @@ export default function LeaderDashboardPage({ params }: { params: Promise<{ grou
                 </li>
               );
             })}
+          </ul>
+        )}
+      </div>
+      {/* Tambahkan di bawah aktivitas deteksi terkini */}
+      <div className="bg-white rounded-xl shadow-sm p-6 mt-8">
+        <h2 className="text-lg font-semibold mb-4">Riwayat Sesi & Hasil Deteksi</h2>
+        {history.length === 0 ? (
+          <div className="text-gray-500 text-center">Belum ada riwayat sesi sebelumnya.</div>
+        ) : (
+          <ul className="divide-y divide-gray-100">
+            {history.map((h, idx) => (
+              <li key={h._id || idx} className="py-4">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                  <div>
+                    <div className="font-semibold text-gray-900">Sesi #{history.length - idx}</div>
+                    <div className="text-xs text-gray-500">Selesai: {h.endedAt ? new Date(h.endedAt).toLocaleString() : '-'}</div>
+                  </div>
+                  <div className="flex flex-wrap gap-2 mt-2 md:mt-0">
+                    {/* Ringkasan emosi: hitung distribusi dari deteksi */}
+                    {(() => {
+                      const emotionCount: Record<string, number> = {};
+                      (h.detections || []).forEach((d: any) => {
+                        Object.entries(d.emotions || {}).forEach(([emo, val]) => {
+                          emotionCount[emo] = (emotionCount[emo] || 0) + (typeof val === 'number' ? val : 0);
+                        });
+                      });
+                      const total = Object.values(emotionCount).reduce((a, b) => a + b, 0) || 1;
+                      return Object.keys(EMOTION_COLORS).map(emotion => (
+                        <div key={emotion} className="flex items-center gap-1">
+                          <span className={`w-3 h-3 rounded-full ${EMOTION_COLORS[emotion]}`}></span>
+                          <span className="text-xs text-gray-700 capitalize">{emotion}</span>
+                          <span className="text-xs text-gray-500">{Math.round((emotionCount[emotion] || 0) / total * 100)}%</span>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                </div>
+              </li>
+            ))}
           </ul>
         )}
       </div>

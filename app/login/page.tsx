@@ -95,9 +95,6 @@ export default function LoginPage() {
               Register
             </Link>
           </div>
-          <div className="text-xs text-muted-foreground text-center">
-            For demo purposes, use: demo@example.com / password
-          </div>
         </CardFooter>
       </Card>
     </div>

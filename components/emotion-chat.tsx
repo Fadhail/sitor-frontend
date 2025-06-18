@@ -85,8 +85,7 @@ export function EmotionChat({ currentEmotion, emotionHistory = [], isOpen, onClo
       } else {
         setError("Unable to get recommendation. Please check your API configuration.")
       }
-    } catch (err) {
-      console.error("Error getting emotion recommendation:", err)
+    } catch {
       setError("An error occurred while getting recommendation.")
     } finally {
       setIsLoading(false)

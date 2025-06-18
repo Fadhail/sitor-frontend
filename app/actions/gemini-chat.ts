@@ -26,8 +26,7 @@ Tanggapi sebagai SITOR:`,
     })
 
     return { success: true, recommendation: text }
-  } catch (error) {
-    console.error("Error getting recommendation:", error)
+  } catch {
     return {
       success: false,
       recommendation:
@@ -77,8 +76,7 @@ Tanggapi sebagai SITOR:`,
     })
 
     return { success: true, response: text }
-  } catch (error) {
-    console.error("Error:", error)
+  } catch {
     return {
       success: false,
       response: "Saya mengalami kendala dalam merespons saat ini, tetapi saya siap membantu Anda. Silakan coba lagi nanti.",
