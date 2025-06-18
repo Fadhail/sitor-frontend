@@ -99,41 +99,32 @@ export default function DetectPage() {
   const detectionHistoryRef = useRef<Detection[]>([]);
   useEffect(() => { detectionHistoryRef.current = detectionHistory; }, [detectionHistory]);
 
-  // Ref dan handler untuk button kirim tersembunyi
-  const sendButtonRef = useRef<HTMLButtonElement>(null);
-
-  // Handler untuk kirim data emosi periodik
-  const handleSendDetection = async () => {
-    const history = detectionHistoryRef.current;
-    if (history.length > 0) {
-      const emotionCounts: Record<string, number> = {
-        neutral: 0, happy: 0, sad: 0, angry: 0, surprised: 0, disgusted: 0
-      };
-      history.forEach((d) => {
-        if (emotionCounts[d.expression] !== undefined) {
-          emotionCounts[d.expression] += 1;
-        }
-      });
-      const total = history.length;
-      const emotionPercents: Record<string, number> = {};
-      Object.keys(emotionCounts).forEach((k) => {
-        emotionPercents[k] = total > 0 ? Math.round((emotionCounts[k] / total) * 100) : 0;
-      });
-      await createDetection({ groupId, emotions: emotionPercents }).catch(() => {});
-      setDetectionHistory([]); // Reset setelah kirim
-    }
-  };
-
-  // Interval otomatis klik button setiap 1 detik
+  // Kirim data deteksi emosi ke backend secara realtime setiap 1 detik
   useEffect(() => {
     if (!isDetecting || !isCameraOn || sessionActive !== true) return;
-    const interval = setInterval(() => {
-      if (sendButtonRef.current) {
-        sendButtonRef.current.click();
+    let interval: NodeJS.Timeout | null = null;
+    interval = setInterval(() => {
+      const history = detectionHistoryRef.current;
+      if (history.length > 0) {
+        const emotionCounts: Record<string, number> = {
+          neutral: 0, happy: 0, sad: 0, angry: 0, surprised: 0, disgusted: 0
+        };
+        history.forEach((d) => {
+          if (emotionCounts[d.expression] !== undefined) {
+            emotionCounts[d.expression] += 1;
+          }
+        });
+        const total = history.length;
+        const emotionPercents: Record<string, number> = {};
+        Object.keys(emotionCounts).forEach((k) => {
+          emotionPercents[k] = total > 0 ? Math.round((emotionCounts[k] / total) * 100) : 0;
+        });
+        createDetection({ groupId, emotions: emotionPercents }).catch(() => {});
+        setDetectionHistory([]); // Reset setelah kirim
       }
     }, 1000);
-    return () => clearInterval(interval);
-  }, [isDetecting, isCameraOn, sessionActive]);
+    return () => { if (interval) clearInterval(interval); };
+  }, [isDetecting, isCameraOn, sessionActive, groupId]);
 
   // Otomatis aktifkan kamera jika sessionActive berubah ke true (sesi baru dimulai)
   useEffect(() => {
@@ -309,34 +300,27 @@ export default function DetectPage() {
     }
 
     // Kirim status kamera nonaktif ke backend
-    const groupId = window.location.pathname.split("/").find((v, i, arr) => arr[i - 1] === "groups") || "default"
     updateCameraStatus({ groupId, isActive: false }).catch(() => {})
 
-    // Kirim rata-rata ke backend saat kamera di-stop
-    const avg = calculateAverageEmotion(allDetections)
-    if (avg && groupId && avg.expression) {
-      // Kirim distribusi emosi terakhir (bukan hanya satu emosi)
+    // Kirim distribusi emosi terakhir ke backend
+    const history = detectionHistoryRef.current;
+    if (history.length > 0) {
       const emotionCounts: Record<string, number> = {
         neutral: 0, happy: 0, sad: 0, angry: 0, surprised: 0, disgusted: 0
       };
-      allDetections.forEach((d) => {
+      history.forEach((d) => {
         if (emotionCounts[d.expression] !== undefined) {
           emotionCounts[d.expression] += 1;
         }
       });
-      const total = allDetections.length;
+      const total = history.length;
       const emotionPercents: Record<string, number> = {};
       Object.keys(emotionCounts).forEach((k) => {
         emotionPercents[k] = total > 0 ? Math.round((emotionCounts[k] / total) * 100) : 0;
       });
-      createDetection({
-        groupId,
-        emotions: emotionPercents,
-      }).catch((err) => {
-        console.error("[DEBUG] Gagal kirim deteksi rata-rata ke backend:", err)
-      })
+      createDetection({ groupId, emotions: emotionPercents }).catch(() => {});
+      setDetectionHistory([]); // Reset setelah kirim
     }
-    setAllDetections([]) // reset setelah kirim
 
     // Notifikasi jika sesi sudah diakhiri (otomatis)
     if (sessionActive === false) {
@@ -645,8 +629,6 @@ export default function DetectPage() {
           </div>
         </div>
       )}
-      {/* Button kirim tersembunyi untuk trigger otomatis */}
-      <button ref={sendButtonRef} onClick={handleSendDetection} className="hidden" tabIndex={-1} aria-hidden="true">Kirim</button>
     </div>
   )
 }
