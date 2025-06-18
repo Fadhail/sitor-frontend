@@ -99,12 +99,17 @@ export default function DetectPage() {
   const detectionHistoryRef = useRef<Detection[]>([]);
   useEffect(() => { detectionHistoryRef.current = detectionHistory; }, [detectionHistory]);
 
-  // Kirim data deteksi emosi ke backend secara realtime setiap 5 detik
+  // Kirim data deteksi emosi ke backend secara realtime setiap 5 detik (robust, debug log)
   useEffect(() => {
     if (!isDetecting || !isCameraOn || sessionActive !== true) return;
     const groupId = window.location.pathname.split("/").find((v, i, arr) => arr[i - 1] === "groups") || "default";
-    const interval = setInterval(() => {
+    let interval: NodeJS.Timeout | null = null;
+    interval = setInterval(() => {
       const history = detectionHistoryRef.current;
+      // DEBUG: log setiap interval
+      if (typeof window !== 'undefined') {
+        console.log('[INTERVAL] detectionHistory.length:', history.length, 'isDetecting:', isDetecting, 'isCameraOn:', isCameraOn, 'sessionActive:', sessionActive);
+      }
       if (history.length > 0) {
         const emotionCounts: Record<string, number> = {
           neutral: 0, happy: 0, sad: 0, angry: 0, surprised: 0, disgusted: 0
@@ -123,7 +128,7 @@ export default function DetectPage() {
         setDetectionHistory([]); // Reset history setelah kirim
       }
     }, 5000);
-    return () => clearInterval(interval);
+    return () => { if (interval) clearInterval(interval); };
   }, [isDetecting, isCameraOn, sessionActive, groupId]);
 
   // Otomatis aktifkan kamera jika sessionActive berubah ke true (sesi baru dimulai)

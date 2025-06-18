@@ -42,13 +42,14 @@ export default function LeaderDashboardPage({ params }: { params: Promise<{ grou
   // State untuk modal konfirmasi start session
   const [showStartSessionModal, setShowStartSessionModal] = useState(false);
 
-  // Polling status kamera & status sesi dengan logika baru yang lebih robust
+  // Polling status kamera & status sesi dengan logika baru
   useEffect(() => {
     let isMounted = true;
     let interval: NodeJS.Timeout | null = null;
+    let pollingAllowed = sessionActive === true;
 
     const pollStatus = () => {
-      if (sessionActive !== true) return;
+      if (!pollingAllowed) return;
       getCameraStatus(groupId)
         .then((res) => {
           if (!isMounted) return;
@@ -66,17 +67,14 @@ export default function LeaderDashboardPage({ params }: { params: Promise<{ grou
             setSessionActive(false);
             setCameraStatus({});
             setCameraStatusError('Sesi grup telah diakhiri oleh ketua. Semua user disconnect.');
-          } else if (err?.response?.status === 401) {
-            setCameraStatusError('Akses tidak valid. Silakan login ulang.');
+            pollingAllowed = false;
           } else {
-            setCameraStatusError('Gagal mengambil status kamera.');
+            setCameraStatusError('Akses tidak valid. Silakan login ulang.');
           }
         });
     };
 
-    // Bersihkan interval lama setiap sessionActive/groupId berubah
-    if (interval) clearInterval(interval);
-
+    // Reset state setiap groupId/sessionActive berubah
     setCameraStatus({});
     setCameraStatusError(null);
 
