@@ -152,8 +152,6 @@ export default function DetectPage() {
   // Handle perubahan status sesi grup dari backend
   useEffect(() => {
     if (showSessionEndedModal) return;
-    // DEBUG: log groupId setiap polling
-    console.log('[Polling] Checking session for groupId:', groupId);
     let interval: NodeJS.Timeout;
     let notified = false;
     async function checkSession() {
