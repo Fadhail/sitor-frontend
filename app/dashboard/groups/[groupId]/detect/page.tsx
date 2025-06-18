@@ -17,7 +17,7 @@ interface FaceApiWindow extends Window {
 }
 
 export default function DetectPage() {
-  // Ambil groupId dari URL (harus di awal komponen)
+  // Ambil groupId dari URL (hanya satu deklarasi di awal komponen)
   const groupId = typeof window !== 'undefined' ? window.location.pathname.split("/").find((v, i, arr) => arr[i - 1] === "groups") || "default" : "default";
 
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -99,37 +99,41 @@ export default function DetectPage() {
   const detectionHistoryRef = useRef<Detection[]>([]);
   useEffect(() => { detectionHistoryRef.current = detectionHistory; }, [detectionHistory]);
 
-  // Kirim data deteksi emosi ke backend secara realtime setiap 5 detik (robust, debug log)
+  // Ref dan handler untuk button kirim tersembunyi
+  const sendButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Handler untuk kirim data emosi periodik
+  const handleSendDetection = async () => {
+    const history = detectionHistoryRef.current;
+    if (history.length > 0) {
+      const emotionCounts: Record<string, number> = {
+        neutral: 0, happy: 0, sad: 0, angry: 0, surprised: 0, disgusted: 0
+      };
+      history.forEach((d) => {
+        if (emotionCounts[d.expression] !== undefined) {
+          emotionCounts[d.expression] += 1;
+        }
+      });
+      const total = history.length;
+      const emotionPercents: Record<string, number> = {};
+      Object.keys(emotionCounts).forEach((k) => {
+        emotionPercents[k] = total > 0 ? Math.round((emotionCounts[k] / total) * 100) : 0;
+      });
+      await createDetection({ groupId, emotions: emotionPercents }).catch(() => {});
+      setDetectionHistory([]); // Reset setelah kirim
+    }
+  };
+
+  // Interval otomatis klik button setiap 1 detik
   useEffect(() => {
     if (!isDetecting || !isCameraOn || sessionActive !== true) return;
-    const groupId = window.location.pathname.split("/").find((v, i, arr) => arr[i - 1] === "groups") || "default";
-    let interval: NodeJS.Timeout | null = null;
-    interval = setInterval(() => {
-      const history = detectionHistoryRef.current;
-      // DEBUG: log setiap interval
-      if (typeof window !== 'undefined') {
-        console.log('[INTERVAL] detectionHistory.length:', history.length, 'isDetecting:', isDetecting, 'isCameraOn:', isCameraOn, 'sessionActive:', sessionActive);
+    const interval = setInterval(() => {
+      if (sendButtonRef.current) {
+        sendButtonRef.current.click();
       }
-      if (history.length > 0) {
-        const emotionCounts: Record<string, number> = {
-          neutral: 0, happy: 0, sad: 0, angry: 0, surprised: 0, disgusted: 0
-        };
-        history.forEach((d) => {
-          if (emotionCounts[d.expression] !== undefined) {
-            emotionCounts[d.expression] += 1;
-          }
-        });
-        const total = history.length;
-        const emotionPercents: Record<string, number> = {};
-        Object.keys(emotionCounts).forEach((k) => {
-          emotionPercents[k] = total > 0 ? Math.round((emotionCounts[k] / total) * 100) : 0;
-        });
-        createDetection({ groupId, emotions: emotionPercents }).catch(() => {});
-        setDetectionHistory([]); // Reset history setelah kirim
-      }
-    }, 5000);
-    return () => { if (interval) clearInterval(interval); };
-  }, [isDetecting, isCameraOn, sessionActive, groupId]);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isDetecting, isCameraOn, sessionActive]);
 
   // Otomatis aktifkan kamera jika sessionActive berubah ke true (sesi baru dimulai)
   useEffect(() => {
@@ -200,7 +204,7 @@ export default function DetectPage() {
         setCameraStatusError('Gagal mengambil status kamera.');
       }
     }
-    interval = setInterval(checkSession, 2000);
+    interval = setInterval(checkSession, 100);
     return () => {
       clearInterval(interval);
       setIsDetecting(false); // hentikan deteksi saat unmount
@@ -641,6 +645,8 @@ export default function DetectPage() {
           </div>
         </div>
       )}
+      {/* Button kirim tersembunyi untuk trigger otomatis */}
+      <button ref={sendButtonRef} onClick={handleSendDetection} className="hidden" tabIndex={-1} aria-hidden="true">Kirim</button>
     </div>
   )
 }
