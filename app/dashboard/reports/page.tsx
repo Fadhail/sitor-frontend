@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Calendar, Download, BarChart3 } from "lucide-react"
-import { getUserDetections } from "@/service/api"
+import { getUserDetections, getDashboardSummary } from "@/service/api"
 import { ReportStatCards } from "@/components/reports/ReportStatCards"
 import { EmotionBarChart } from "@/components/reports/EmotionBarChart"
 import { EmotionPieChart } from "@/components/reports/EmotionPieChart"
@@ -24,13 +24,16 @@ export default function ReportsPage() {
   useEffect(() => {
     async function fetchDetections() {
       try {
-        const res = await getUserDetections()
-        const data = Array.isArray(res.data) ? res.data : res.data.detections || []
+        // Ambil data summary dari backend (sudah berisi deteksi user)
+        const res = await getDashboardSummary()
+        const summary = res.data.summary
+        // Ambil data recent (deteksi terakhir) dan konversi ke format yang dibutuhkan komponen
+        const data = Array.isArray(summary.recent) ? summary.recent : []
         setEmotionHistory(
           data.map((d: any) => ({
-            timestamp: d.createdAt || d.timestamp,
-            emotion: d.emotion,
-            probability: d.probability,
+            timestamp: d.timestamp,
+            emotion: d.dominant,
+            probability: d.probability ?? 1,
           }))
         )
       } catch (err: any) {

@@ -5,12 +5,13 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { BarChart3, Home, LogOut, Menu, SmilePlus, User, Users2Icon, X } from "lucide-react"
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [user, setUser] = useState<{ name: string; email: string } | null>(null)
+  const [user, setUser] = useState<{ name: string; email: string; photoUrl?: string } | null>(null)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   useEffect(() => {
@@ -69,22 +70,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   Reports
                 </Button>
               </Link>
-              <Link href="/dashboard/profile">
-                <Button variant="ghost" className="w-full justify-start">
-                  <User className="mr-2 h-4 w-4" />
-                  Profile
-                </Button>
-              </Link>
+              {/* Profile menu removed */}
             </div>
           </div>
         </nav>
         <div className="mt-auto border-t p-4">
-          <div className="flex items-center gap-2 py-2">
-            <div>
-              <p className="text-sm font-medium">{user?.name}</p>
-              <p className="text-xs text-muted-foreground">{user?.email}</p>
+          <Link href="/dashboard/profile" className="block">
+            <div className="flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:bg-accent transition">
+              <Avatar>
+                <AvatarImage src={user && 'photoUrl' in user ? user.photoUrl : undefined} alt={user?.name || "User"} />
+                <AvatarFallback>{user?.name ? user.name[0] : "U"}</AvatarFallback>
+              </Avatar>
+              <div className="flex flex-col">
+                <span className="text-sm font-medium">{user?.name}</span>
+                <span className="text-xs text-muted-foreground">{user?.email}</span>
+              </div>
             </div>
-          </div>
+          </Link>
           <Button variant="outline" className="mt-2 w-full justify-start" onClick={handleLogout}>
             <LogOut className="mr-2 h-4 w-4" />
             Log out
@@ -139,22 +141,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         Reports
                       </Button>
                     </Link>
-                    <Link href="/dashboard/profile" onClick={() => setIsMobileMenuOpen(false)}>
-                      <Button variant="ghost" className="w-full justify-start">
-                        <User className="mr-2 h-4 w-4" />
-                        Profile
-                      </Button>
-                    </Link>
+                    {/* Profile menu removed */}
                   </div>
                 </div>
               </nav>
               <div className="mt-auto border-t p-4">
-                <div className="flex items-center gap-2 py-2">
-                  <div>
-                    <p className="text-sm font-medium">{user?.name}</p>
-                    <p className="text-xs text-muted-foreground">{user?.email}</p>
+                <Link href="/dashboard/profile" className="block w-full">
+                  <div className="flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:bg-accent transition">
+                    <Avatar>
+                      <AvatarImage src={user && 'photoUrl' in user ? user.photoUrl : undefined} alt={user?.name || "User"} />
+                      <AvatarFallback>{user?.name ? user.name[0] : "U"}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium">{user?.name}</span>
+                      <span className="text-xs text-muted-foreground">{user?.email}</span>
+                    </div>
                   </div>
-                </div>
+                </Link>
                 <Button variant="outline" className="mt-2 w-full justify-start" onClick={handleLogout}>
                   <LogOut className="mr-2 h-4 w-4" />
                   Log out
