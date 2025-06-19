@@ -8,12 +8,14 @@ import { getDashboardSummary } from "@/service/api"
 import { StatCard } from "@/components/dashboard/StatCard"
 import { RecentActivity } from "@/components/dashboard/RecentActivity"
 import { EmotionTrendLineChart } from "@/components/dashboard/EmotionTrendLineChart"
+import { useUserGroups } from "./groups/useUserGroups"
 
 export default function DashboardPage() {
   const [userName, setUserName] = useState("")
   const [summary, setSummary] = useState<any>(null)
   const [isChatOpen, setIsChatOpen] = useState(false)
   const [error, setError] = useState("")
+  const [groups, setGroups] = useState<any[]>([]);
 
   useEffect(() => {
     const userData = localStorage.getItem("user")
@@ -32,10 +34,30 @@ export default function DashboardPage() {
     fetchSummary()
   }, [])
 
+  useEffect(() => {
+    async function fetchGroups() {
+      try {
+        const res = await import("@/service/api").then(m => m.getGroups())
+        setGroups(res.data.groups || [])
+      } catch {
+        setGroups([])
+      }
+    }
+    fetchGroups()
+  }, [])
+
+  const userId = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("user") || '{}').id : null;
+  const userGroups = useUserGroups(userId, groups);
+
   function formatDate(dateStr: string) {
     if (!dateStr) return "-"
     const d = new Date(dateStr)
-    return d.toLocaleString()
+    // Format: Senin, 19 Juni 2025
+    const hari = d.toLocaleDateString("id-ID", { weekday: "long" })
+    const tanggal = d.getDate()
+    const bulan = d.toLocaleDateString("id-ID", { month: "long" })
+    const tahun = d.getFullYear()
+    return `${hari}, ${tanggal} ${bulan} ${tahun}`
   }
   function cap(str: string) {
     return str ? str.charAt(0).toUpperCase() + str.slice(1) : "-"
@@ -50,8 +72,8 @@ export default function DashboardPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard title="Total Detections" icon={<SmilePlus className="h-4 w-4 text-muted-foreground" />} value={summary ? summary.total : "-"} />
         <StatCard title="Average Mood" icon={<BarChart3 className="h-4 w-4 text-muted-foreground" />} value={summary ? cap(summary.averageEmotion?.dominant) : "-"} />
-        <StatCard title="Last Detection" icon={<Clock className="h-4 w-4 text-muted-foreground" />} value={summary && summary.lastDetection ? formatDate(summary.lastDetection.timestamp) : "-"} description={summary && summary.lastDetection ? `Detected: ${Object.entries(summary.lastDetection.emotions).reduce((a, [k, v]) => (v as number) > (summary.lastDetection.emotions[a] as number || 0) ? k : a, "neutral")}` : undefined} />
-        <StatCard title="Active Users" icon={<Users className="h-4 w-4 text-muted-foreground" />} value="-" />
+        <StatCard title="Last Detection" icon={<Clock className="h-4 w-4 text-muted-foreground" />} value={summary && summary.lastDetection ? formatDate(summary.lastDetection.timestamp) : "-"} description={summary && summary.lastDetection ? `Terdeteksi: ${formatDate(summary.lastDetection.timestamp)} - ${Object.entries(summary.lastDetection.emotions).reduce((a, [k, v]) => (v as number) > (summary.lastDetection.emotions[a] as number || 0) ? k : a, "neutral")}` : undefined} />
+        <StatCard title="Total Grup Dimasuki" icon={<Users className="h-4 w-4 text-muted-foreground" />} value={userGroups.length} />
       </div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
         <div className="col-span-4">

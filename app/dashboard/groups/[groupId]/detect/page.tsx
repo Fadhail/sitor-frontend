@@ -157,7 +157,7 @@ export default function DetectPage() {
     async function checkSession() {
       try {
         setCameraStatusError(null);
-        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080";
+        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "https://backend.xeroon.my.id";
         const token = typeof window !== "undefined" ? localStorage.getItem("token") : "";
         const headers: Record<string, string> = {};
         if (token) headers["Authorization"] = `Bearer ${token}`;

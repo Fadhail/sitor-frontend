@@ -133,12 +133,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         Groups
                       </Button>
                     </Link>
-                    <Link href="/dashboard/detect" onClick={() => setIsMobileMenuOpen(false)}>
-                      <Button variant="ghost" className="w-full justify-start">
-                        <SmilePlus className="mr-2 h-4 w-4" />
-                        Detect Emotions
-                      </Button>
-                    </Link>
                     <Link href="/dashboard/reports" onClick={() => setIsMobileMenuOpen(false)}>
                       <Button variant="ghost" className="w-full justify-start">
                         <BarChart3 className="mr-2 h-4 w-4" />

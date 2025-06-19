@@ -113,7 +113,7 @@ export default function LeaderDashboardPage({ params }: { params: Promise<{ grou
         // alert('Group ID tidak ditemukan.');
         return;
       }
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080";
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "https://backend.xeroon.my.id";
       const res = await fetch(`${backendUrl}/api/groups/${groupId}/end-session`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
