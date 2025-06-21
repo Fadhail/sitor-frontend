@@ -10,6 +10,8 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Send, Bot, User, Loader2, X, Minimize2 } from "lucide-react"
 import { getEmotionRecommendation, chatWithGemini } from "@/app/actions/gemini-chat"
+import { getChatHistory, addChatMessage } from "@/service/chatHistory"
+import ReactMarkdown from "react-markdown"
 
 interface Message {
   id: string
@@ -68,6 +70,22 @@ export function EmotionChat({ currentEmotion, emotionHistory = [], isOpen, onClo
     }
   }, [isOpen])
 
+  // Fetch chat history from backend on open
+  useEffect(() => {
+    if (isOpen) {
+      getChatHistory().then((msgs) => {
+        setMessages(
+          msgs.map((m: any, idx: number) => ({
+            id: idx + "",
+            content: m.message,
+            sender: m.sender === "assistant" ? "ai" : "user",
+            timestamp: new Date(m.created_at),
+          }))
+        )
+      })
+    }
+  }, [isOpen])
+
   const handleEmotionRecommendation = async (emotion: string) => {
     setIsLoading(true)
     setError(null)
@@ -96,11 +114,8 @@ export function EmotionChat({ currentEmotion, emotionHistory = [], isOpen, onClo
 
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || isLoading) return
-
     setIsLoading(true)
     setError(null)
-
-    // Prediksi SVM sebelum menambah pesan user
     let svmResult: { emotion: string; confidence: number } | undefined = undefined
     try {
       const result = await chatWithGemini(
@@ -110,7 +125,6 @@ export function EmotionChat({ currentEmotion, emotionHistory = [], isOpen, onClo
         currentEmotion
       )
       svmResult = result.svm
-      // Tambahkan pesan user
       const userMessage: Message = {
         id: Date.now().toString(),
         content: inputMessage,
@@ -119,8 +133,8 @@ export function EmotionChat({ currentEmotion, emotionHistory = [], isOpen, onClo
         svmResult: svmResult ? { emotion: svmResult.emotion, confidence: svmResult.confidence } : undefined
       }
       setMessages((prev) => [...prev, userMessage])
+      await addChatMessage({ sender: "user", message: inputMessage })
       setInputMessage("")
-      // Tambahkan pesan AI
       if (result.success) {
         const aiMessage: Message = {
           id: (Date.now() + 1).toString(),
@@ -129,6 +143,7 @@ export function EmotionChat({ currentEmotion, emotionHistory = [], isOpen, onClo
           timestamp: new Date(),
         }
         setMessages((prev) => [...prev, aiMessage])
+        await addChatMessage({ sender: "assistant", message: result.response })
       } else {
         setError("Unable to send message. Please check your API configuration.")
       }
@@ -219,7 +234,11 @@ export function EmotionChat({ currentEmotion, emotionHistory = [], isOpen, onClo
                       className={`rounded-lg px-3 py-2 text-sm ${message.sender === "user" ? "bg-primary text-primary-foreground ml-auto" : "bg-muted"
                         }`}
                     >
-                      {message.content}
+                      {message.sender === "user" ? (
+                        typeof message.content === "string" ? message.content : String(message.content)
+                      ) : (
+                        <div className="prose prose-sm max-w-none"><ReactMarkdown>{String(message.content)}</ReactMarkdown></div>
+                      )}
                     </div>
                     {/* Tampilkan hasil prediksi SVM di bawah pesan user */}
                     {message.sender === "user" && message.svmResult && (
