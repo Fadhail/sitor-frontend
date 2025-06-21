@@ -1,12 +1,16 @@
 "use server"
 
-import { google } from "@ai-sdk/google"
+import { google, createGoogleGenerativeAI } from "@ai-sdk/google"
 import { generateText } from "ai"
+import { predictSVMEmotion } from "@/service/api"
+
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY
+const geminiProvider = createGoogleGenerativeAI({ apiKey: GEMINI_API_KEY })
 
 export async function getEmotionRecommendation(emotion: string, context?: string) {
   try {
     const { text } = await generateText({
-      model: google("gemini-2.0-flash"),
+      model: geminiProvider("gemini-2.0-flash"),
       prompt: `Anda adalah SITOR, asisten AI berempati yang mengkhususkan diri dalam deteksi emosi dan dukungan kesehatan mental.
 
 Deteksi yang terdeteksi: ${emotion}
@@ -26,7 +30,8 @@ Tanggapi sebagai SITOR:`,
     })
 
     return { success: true, recommendation: text }
-  } catch {
+  } catch (err) {
+    console.error("Gemini error:", err)
     return {
       success: false,
       recommendation:
@@ -42,6 +47,14 @@ export async function chatWithGemini(
   currentEmotion?: string
 ) {
   try {
+    // Prediksi emosi dari input user menggunakan SVM API
+    let svmResult = null;
+    try {
+      svmResult = await predictSVMEmotion(message); // hanya prediksi text user
+    } catch (svmErr) {
+      console.error("SVM API error:", svmErr);
+    }
+
     const recentEmotions = emotionHistory.slice(-5).join(", ")
 
     // Build conversation context
@@ -54,29 +67,13 @@ export async function chatWithGemini(
     }
 
     const { text } = await generateText({
-      model: google("gemini-2.0-flash"),
-      prompt: `Anda adalah SITOR, asisten AI berempati yang mengkhususkan diri dalam deteksi emosi dan dukungan kesehatan mental.
-
-${conversationContext ? `Konteks percakapan sebelumnya:\n${conversationContext}\n\n` : ""}
-
-Emosi pengguna saat ini: ${currentEmotion || "tidak diketahui"}
-Sejarah emosi terkini: ${recentEmotions || "tidak ada"}
-
-Pesan pengguna saat ini: ${message}
-
-Petunjuk:
-- Lanjutkan percakapan secara wajar, dengan merujuk pada konteks sebelumnya jika relevan
-- Berikan tanggapan yang berempati dan mendukung
-- Berikan saran praktis terkait kondisi emosional pengguna
-- Buat tanggapan yang ringkas tetapi penuh perhatian
-- Tanggapi dalam bahasa yang sama dengan yang digunakan pengguna
-- Ingat topik sebelumnya yang dibahas dalam percakapan ini
-
-Tanggapi sebagai SITOR:`,
+      model: geminiProvider("gemini-2.0-flash"),
+      prompt: `${message} and if you need current emotion, use "${currentEmotion }" as the current emotion. If no need dont use that`
     })
 
-    return { success: true, response: text }
-  } catch {
+    return { success: true, response: text, svm: svmResult }
+  } catch (err) {
+    console.error("Gemini error:", err)
     return {
       success: false,
       response: "Saya mengalami kendala dalam merespons saat ini, tetapi saya siap membantu Anda. Silakan coba lagi nanti.",

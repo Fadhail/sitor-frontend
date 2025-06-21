@@ -16,6 +16,7 @@ interface Message {
   content: string
   sender: "user" | "ai"
   timestamp: Date
+  svmResult?: { emotion: string; confidence: number } // Tambahan untuk hasil SVM
 }
 
 interface EmotionChatProps {
@@ -96,45 +97,46 @@ export function EmotionChat({ currentEmotion, emotionHistory = [], isOpen, onClo
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || isLoading) return
 
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      content: inputMessage,
-      sender: "user",
-      timestamp: new Date(),
-    }
-
-    const updatedMessages = [...messages, userMessage]
-    setMessages(updatedMessages)
-    setInputMessage("")
     setIsLoading(true)
     setError(null)
 
-    // Convert messages to format expected by chatWithGemini
-    const chatHistory = updatedMessages.map(msg => ({
-      content: msg.content,
-      sender: msg.sender
-    }))
-
-    const result = await chatWithGemini(
-      inputMessage,
-      emotionHistory,
-      chatHistory,
-      currentEmotion
-    )
-
-    if (result.success) {
-      const aiMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        content: result.response,
-        sender: "ai",
+    // Prediksi SVM sebelum menambah pesan user
+    let svmResult: { emotion: string; confidence: number } | undefined = undefined
+    try {
+      const result = await chatWithGemini(
+        inputMessage,
+        emotionHistory,
+        [...messages, { id: Date.now().toString(), content: inputMessage, sender: "user", timestamp: new Date() }],
+        currentEmotion
+      )
+      svmResult = result.svm
+      // Tambahkan pesan user
+      const userMessage: Message = {
+        id: Date.now().toString(),
+        content: inputMessage,
+        sender: "user",
         timestamp: new Date(),
+        svmResult: svmResult ? { emotion: svmResult.emotion, confidence: svmResult.confidence } : undefined
       }
-      setMessages((prev) => [...prev, aiMessage])
-    } else {
-      setError("Unable to send message. Please check your API configuration.")
+      setMessages((prev) => [...prev, userMessage])
+      setInputMessage("")
+      // Tambahkan pesan AI
+      if (result.success) {
+        const aiMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          content: result.response,
+          sender: "ai",
+          timestamp: new Date(),
+        }
+        setMessages((prev) => [...prev, aiMessage])
+      } else {
+        setError("Unable to send message. Please check your API configuration.")
+      }
+    } catch {
+      setError("An error occurred while sending message.")
+    } finally {
+      setIsLoading(false)
     }
-
-    setIsLoading(false)
   }
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -199,7 +201,7 @@ export function EmotionChat({ currentEmotion, emotionHistory = [], isOpen, onClo
                 </div>
               )}
 
-              {messages.map((message) => (
+              {messages.map((message, idx) => (
                 <div
                   key={message.id}
                   className={`flex gap-3 ${message.sender === "user" ? "justify-end" : "justify-start"}`}
@@ -219,6 +221,12 @@ export function EmotionChat({ currentEmotion, emotionHistory = [], isOpen, onClo
                     >
                       {message.content}
                     </div>
+                    {/* Tampilkan hasil prediksi SVM di bawah pesan user */}
+                    {message.sender === "user" && message.svmResult && (
+                      <div className="text-xs mt-1 text-right text-blue-600">
+                        SVM Prediction: <span className="font-semibold">{message.svmResult.emotion}</span> ({(message.svmResult.confidence * 100).toFixed(1)}%)
+                      </div>
+                    )}
                     <div
                       className={`text-xs text-muted-foreground mt-1 ${message.sender === "user" ? "text-right" : "text-left"
                         }`}

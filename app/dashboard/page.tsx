@@ -93,16 +93,6 @@ export default function DashboardPage() {
         </div>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
-        <div>
-          <div className="flex justify-center">
-            <Link href="/dashboard/detect">
-              <button className="gap-2 btn btn-primary">
-                <SmilePlus className="h-5 w-5" />
-                Start New Detection
-              </button>
-            </Link>
-          </div>
-        </div>
         <div className="relative">
           {isChatOpen && (
             <EmotionChat

@@ -118,4 +118,9 @@ export async function getDetectionHistory(groupId: string) {
   });
 }
 
+export async function predictSVMEmotion(text: string) {
+  const res = await axios.post("http://localhost:8000/predict", { text });
+  return res.data; // { emotion, confidence }
+}
+
 // Tidak perlu parameter role pada register/login, semua user netral
