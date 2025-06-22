@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Camera, Download, Loader2 } from "lucide-react"
 import { createDetection } from "@/service/detections"
-import { updateCameraStatus } from "@/service/api"
+import { getCameraStatus, updateCameraStatus } from "@/service/api"
 
 interface Detection {
   expression: string
@@ -157,11 +157,8 @@ export default function DetectPage() {
     async function checkSession() {
       try {
         setCameraStatusError(null);
-        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "https://backend.xeroon.my.id";
-        const token = typeof window !== "undefined" ? localStorage.getItem("token") : "";
-        const headers: Record<string, string> = {};
-        if (token) headers["Authorization"] = `Bearer ${token}`;
-        const res = await fetch(`${backendUrl}/api/groups/${groupId}/camera-status`, { headers });
+        const res = await getCameraStatus(groupId);
+        // axios response: res.status, res.data
         if (res.status === 401) {
           setCameraStatusError('Akses tidak valid. Silakan login ulang.');
           localStorage.removeItem("user");
@@ -181,7 +178,7 @@ export default function DetectPage() {
         } else {
           setSessionActive(true);
           setCameraStatusError(null);
-          const data = await res.json();
+          const data = res.data;
           if (Array.isArray(data.statuses) && data.statuses.length === 0 && !notified) {
             notified = true;
             setIsCameraActive(false);
