@@ -55,13 +55,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <Link href="/dashboard">
                 <Button variant="ghost" className="w-full justify-start">
                   <Home className="mr-2 h-4 w-4" />
-                  Home
+                  Dashboard
                 </Button>
               </Link>
               <Link href="/dashboard/groups">
                 <Button variant="ghost" className="w-full justify-start">
                   <Users2Icon className="mr-2 h-4 w-4" />
-                  Groups
+                  Grup
                 </Button>
               </Link>
               <Link href="/dashboard/reports">

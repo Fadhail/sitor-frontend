@@ -14,8 +14,8 @@ export function DetectionHistoryList({ emotionHistory }: DetectionHistoryListPro
   if (emotionHistory.length === 0) {
     return (
       <div className="py-8 text-center text-muted-foreground">
-        <p>No detection history available</p>
-        <p className="text-sm mt-2">Start detecting emotions to build your history</p>
+        <p>Tidak ada data tersedia</p>
+        <p className="text-sm mt-2">Mulai mendeteksi emosi untuk membuat laporan</p>
       </div>
     );
   }

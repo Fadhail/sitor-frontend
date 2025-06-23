@@ -189,10 +189,10 @@ export function EmotionChat({ currentEmotion, emotionHistory = [], isOpen, onClo
           </div>
         </div>
         <CardDescription>
-          Get personalized recommendations based on your emotions
+          Dapatkan rekomendasi yang dipersonalisasi berdasarkan emosi Anda
           {currentEmotion && (
             <span className="block mt-1 text-sm font-medium">
-              Current emotion: <span className="capitalize text-primary">{currentEmotion}</span>
+              Emosi Terkini: <span className="capitalize text-primary">{currentEmotion}</span>
             </span>
           )}
         </CardDescription>
@@ -286,7 +286,7 @@ export function EmotionChat({ currentEmotion, emotionHistory = [], isOpen, onClo
         <div className="border-t p-4 bg-background">
           <div className="flex gap-2">
             <Input
-              placeholder="Ask me anything about your emotions..."
+              placeholder="Tanyakan apa saja tentang emosi Anda..."
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
               onKeyPress={handleKeyPress}

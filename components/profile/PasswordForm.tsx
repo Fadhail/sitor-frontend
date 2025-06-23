@@ -57,7 +57,7 @@ export function PasswordForm({
       </div>
       <div>
         <Button type="submit" className="w-full" disabled={isLoading}>
-          {isLoading ? "Changing..." : "Change Password"}
+          {isLoading ? "Changing..." : "Ubah Password"}
         </Button>
       </div>
     </form>

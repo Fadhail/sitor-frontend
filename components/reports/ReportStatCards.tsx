@@ -17,8 +17,8 @@ export function ReportStatCards({ emotionHistory, dominant }: ReportStatCardsPro
     <div className="grid gap-6 md:grid-cols-3">
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle>Total Sessions</CardTitle>
-          <CardDescription>Number of detection sessions</CardDescription>
+          <CardTitle>Total Sesi</CardTitle>
+          <CardDescription>Jumlah sesi deteksi</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="text-3xl font-bold">{emotionHistory.length}</div>
@@ -26,8 +26,8 @@ export function ReportStatCards({ emotionHistory, dominant }: ReportStatCardsPro
       </Card>
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle>Dominant Emotion</CardTitle>
-          <CardDescription>Most frequently detected</CardDescription>
+          <CardTitle>Emosi Dominan</CardTitle>
+          <CardDescription>Paling sering terdeteksi</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-2">
@@ -38,8 +38,8 @@ export function ReportStatCards({ emotionHistory, dominant }: ReportStatCardsPro
       </Card>
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle>Last Detection</CardTitle>
-          <CardDescription>Most recent session</CardDescription>
+          <CardTitle>Deteksi Terakhir</CardTitle>
+          <CardDescription>Sesi terbaru</CardDescription>
         </CardHeader>
         <CardContent>
           {emotionHistory.length > 0 ? (
@@ -50,7 +50,7 @@ export function ReportStatCards({ emotionHistory, dominant }: ReportStatCardsPro
               </div>
             </div>
           ) : (
-            <div className="text-xl font-bold">No data</div>
+            <div className="text-xl font-bold">Tidak Ada Data</div>
           )}
         </CardContent>
       </Card>

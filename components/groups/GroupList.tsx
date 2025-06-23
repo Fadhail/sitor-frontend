@@ -60,12 +60,11 @@ export function GroupList({ groups, userId, onJoin, onAccess, onAddGroup, onDele
                 >
                   <div className="flex items-center gap-2 mb-3">
                     <h3 className="text-lg font-semibold flex-1 truncate">{g.name}</h3>
-                    <span className="text-xs px-2 py-0.5 rounded bg-green-500 text-white">Joined</span>
+                    <span className="text-xs px-2 py-0.5 rounded bg-green-500 text-white">Bergabung</span>
                   </div>
                   <p className="text-gray-700 mb-3 line-clamp-2 min-h-[2.5em]">{g.description}</p>
                   <div className="flex items-center justify-between text-sm text-muted-foreground mb-4 mt-auto">
                     <span className="flex items-center gap-1"><User2 className="w-4 h-4" /> {g.members.length} anggota</span>
-                    <span className="pl-2 border-l border-gray-200">Leader: <span className="font-medium text-green-700">{g.leaderId === userId ? 'Anda' : g.leaderId.slice(0, 8) + '...'}</span></span>
                   </div>
                   <Button
                     onClick={() => onAccess(g.id, userId === g.leaderId)}
@@ -162,12 +161,11 @@ export function GroupList({ groups, userId, onJoin, onAccess, onAddGroup, onDele
                 >
                   <div className="flex items-center gap-2 mb-3">
                     <h3 className="text-lg font-semibold flex-1 truncate">{g.name}</h3>
-                    <span className="text-xs px-2 py-0.5 rounded bg-gray-200 text-gray-700">Public</span>
+                    <span className="text-xs px-2 py-0.5 rounded bg-gray-200 text-gray-700">Publik</span>
                   </div>
                   <p className="text-gray-700 mb-3 line-clamp-2 min-h-[2.5em]">{g.description}</p>
                   <div className="flex items-center justify-between text-sm text-muted-foreground mb-4 mt-auto">
                     <span className="flex items-center gap-1"><User2 className="w-4 h-4" /> {g.members.length} anggota</span>
-                    <span className="pl-2 border-l border-gray-200">Leader: <span className="font-medium text-gray-700">{g.leaderId.slice(0, 8) + '...'}</span></span>
                   </div>
                   <Button
                     onClick={() => onJoin(g.id)}

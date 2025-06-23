@@ -111,7 +111,6 @@ export default function GroupsPage() {
 	return (
 		// Hilangkan container agar sticky search bar bekerja di area scroll
 		<div className="max-w-6xl mx-auto px-4 py-10">
-			<h1 className="text-2xl font-bold tracking-tight mb-10">Daftar Grup</h1>
 			<GroupList
 				groups={groups}
 				userId={userId}

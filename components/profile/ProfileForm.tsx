@@ -38,7 +38,7 @@ export function ProfileForm({ name, email, isLoading, error, success, onChange, 
       </div>
       <div>
         <Button type="submit" className="w-full" disabled={isLoading}>
-          {isLoading ? "Updating..." : "Update Profile"}
+          {isLoading ? "Updating..." : "Perbarui Profil"}
         </Button>
       </div>
     </form>

@@ -7,7 +7,7 @@ interface RecentActivityProps {
 
 export function RecentActivity({ activities }: RecentActivityProps) {
   if (!activities || activities.length === 0) {
-    return <div className="text-muted-foreground">No recent activity</div>;
+    return <div className="text-muted-foreground">Tidak ada aktivitas terkini</div>;
   }
   return (
     <div className="space-y-4">
@@ -17,7 +17,7 @@ export function RecentActivity({ activities }: RecentActivityProps) {
             <SmilePlus className="h-4 w-4 text-primary" />
           </div>
           <div className="space-y-1">
-            <p className="text-sm font-medium leading-none">Emotion Detection Session</p>
+            <p className="text-sm font-medium leading-none">Sesi Deteksi Emosi</p>
             <p className="text-sm text-muted-foreground">{format(new Date(item.timestamp), "PPpp")}</p>
           </div>
           <div className="ml-auto font-medium capitalize">{item.dominant}</div>

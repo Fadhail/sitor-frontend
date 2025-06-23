@@ -27,8 +27,7 @@ export default function Home() {
                     SITOR (Emosi Detector)
                   </h1>
                   <p className="mx-auto lg:mx-0 max-w-[600px] text-muted-foreground md:text-xl">
-                    Our advanced facial recognition technology analyzes expressions to identify emotions in real-time.
-                    Perfect for research, customer experience analysis, and more.
+                    SITOR adalah platform cerdas yang membantu pemimpin kelompok memantau emosi anggota secara realtime melalui deteksi wajah. Cocok untuk kerja tim, diskusi proyek, dan kegiatan kolaboratif. Didukung oleh SITOR Assistant, fitur AI yang memberikan rekomendasi berdasarkan emosi yang terdeteksi.
                   </p>
                 </div>
                 <div className="flex flex-col gap-2 min-[400px]:flex-row justify-center lg:justify-start">
@@ -37,32 +36,14 @@ export default function Home() {
                   </Link>
                 </div>
               </div>
-              <div className="mx-auto aspect-video overflow-hidden rounded-xl border bg-muted lg:order-last">
-                <div className="flex h-full items-center justify-center p-4">
-                  <div className="relative w-full max-w-sm">
-                    <div className="absolute -top-6 -left-6 h-24 w-24 rounded-full bg-purple-600 opacity-50 blur-xl"></div>
-                    <div className="absolute -bottom-6 -right-6 h-24 w-24 rounded-full bg-blue-600 opacity-50 blur-xl"></div>
-                    <div className="relative rounded-lg border bg-background p-4 shadow-lg">
-                      <div className="space-y-2">
-                        <div className="h-2 w-1/2 rounded bg-muted"></div>
-                        <div className="h-12 rounded bg-muted"></div>
-                        <div className="flex gap-2">
-                          <div className="h-4 w-4 rounded-full bg-green-500"></div>
-                          <div className="h-4 flex-1 rounded bg-muted"></div>
-                        </div>
-                        <div className="flex gap-2">
-                          <div className="h-4 w-4 rounded-full bg-yellow-500"></div>
-                          <div className="h-4 flex-1 rounded bg-muted"></div>
-                        </div>
-                        <div className="flex gap-2">
-                          <div className="h-4 w-4 rounded-full bg-red-500"></div>
-                          <div className="h-4 flex-1 rounded bg-muted"></div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                <div className="flex justify-center">
+                  <img
+                  src="/sitor.png"
+                  alt="SITOR Hero Image"
+                  className="max-w-xs h-auto rounded-lg shadow-lg hidden md:block"
+                  style={{ width: "auto", height: "auto" }}
+                  />
                 </div>
-              </div>
             </div>
           </div>
         </section>
@@ -70,9 +51,10 @@ export default function Home() {
           <div className="container mx-auto px-4 md:px-6 max-w-7xl">
             <div className="flex flex-col items-center justify-center space-y-4 text-center">
               <div className="space-y-2">
-                <h2 className="text-3xl font-bold tracking-tighter sm:text-5xl">Key Features</h2>
+                <h2 className="text-3xl font-bold tracking-tighter sm:text-5xl">Fitur Utama</h2>
                 <p className="max-w-[900px] text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
-                  Our platform offers comprehensive emotion detection capabilities with powerful features
+                  SITOR menawarkan berbagai fitur untuk meningkatkan pengalaman kerja tim Anda. Dengan teknologi deteksi wajah dan analisis emosi, SITOR memberikan wawasan yang mendalam tentang suasana hati anggota tim Anda.
+
                 </p>
               </div>
             </div>
@@ -91,16 +73,14 @@ export default function Home() {
                     strokeLinejoin="round"
                     className="h-6 w-6"
                   >
-                    <path d="M2 12a10 10 0 1 0 20 0 10 10 0 0 0-20 0Z"></path>
-                    <path d="M8 9h.01"></path>
-                    <path d="M16 9h.01"></path>
-                    <path d="M8 13a4 4 0 0 0 8 0"></path>
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
                   </svg>
                 </div>
                 <div className="space-y-2">
-                  <h3 className="text-xl font-bold">Real-time Detection</h3>
+                  <h3 className="text-xl font-bold">Pemantauan Emosi Anggota Grup</h3>
                   <p className="text-muted-foreground">
-                    Analyze emotions in real-time through your webcam with high accuracy and minimal latency.
+                    Ketua kelompok dapat memantau ekspresi wajah dan emosi seluruh anggota secara real-time, membantu memahami suasana hati tim saat mengerjakan proyek bersama.
                   </p>
                 </div>
               </div>
@@ -118,14 +98,17 @@ export default function Home() {
                     strokeLinejoin="round"
                     className="h-6 w-6"
                   >
-                    <path d="M3 3v18h18"></path>
-                    <path d="m19 9-5 5-4-4-3 3"></path>
+                    <rect x="3" y="4" width="18" height="12" rx="2"></rect>
+                    <path d="M12 16v4"></path>
+                    <path d="M8 20h8"></path>
+                    <path d="M10 4V2"></path>
+                    <path d="M14 4V2"></path>
                   </svg>
                 </div>
                 <div className="space-y-2">
-                  <h3 className="text-xl font-bold">Detailed Reports</h3>
+                  <h3 className="text-xl font-bold">SITOR Assistant (AI Rekomendasi Emosi)</h3>
                   <p className="text-muted-foreground">
-                    Get comprehensive reports with emotion trends, statistics, and historical data analysis.
+                    AI bawaan kami menganalisis emosi yang terdeteksi dan memberikan saran yang tepat untuk menjaga produktivitas dan suasana kerja tetap positif.
                   </p>
                 </div>
               </div>
@@ -143,14 +126,16 @@ export default function Home() {
                     strokeLinejoin="round"
                     className="h-6 w-6"
                   >
-                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"></path>
-                    <path d="m9 12 2 2 4-4"></path>
+                    <circle cx="9" cy="7" r="4"></circle>
+                    <path d="M17 11v-1a4 4 0 1 0-8 0v1"></path>
+                    <path d="M17 17v-1a4 4 0 1 0-8 0v1"></path>
+                    <circle cx="17" cy="7" r="4"></circle>
                   </svg>
                 </div>
                 <div className="space-y-2">
-                  <h3 className="text-xl font-bold">Secure Login</h3>
+                  <h3 className="text-xl font-bold">Peran Dinamis: Ketua & Anggota</h3>
                   <p className="text-muted-foreground">
-                    Keep your data safe with our secure authentication system and personalized user accounts.
+                    SITOR mendukung struktur tim dengan dua peran utama — Ketua sebagai pemantau dan Anggota sebagai peserta deteksi. Ini memungkinkan pemantauan yang terarah dan pengalaman yang terorganisir.
                   </p>
                 </div>
               </div>

@@ -93,13 +93,13 @@ export default function ProfilePage() {
   return (
     <div className="container mx-auto py-8 max-w-2xl">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-1">Account Settings</h1>
-        <p className="text-muted-foreground text-base">Manage your account settings and preferences</p>
+        <h1 className="text-3xl font-bold mb-1">Pengaturan Akun</h1>
+        <p className="text-muted-foreground text-base">Kelola pengaturan dan preferensi akun Anda</p>
       </div>
       <Tabs defaultValue="profile" className="w-full">
         <TabsList className="mb-4">
-          <TabsTrigger value="profile">Profile</TabsTrigger>
-          <TabsTrigger value="password">Change Password</TabsTrigger>
+          <TabsTrigger value="profile">Profil</TabsTrigger>
+          <TabsTrigger value="password">Ubah Password</TabsTrigger>
         </TabsList>
         <TabsContent value="profile">
           <ProfileForm

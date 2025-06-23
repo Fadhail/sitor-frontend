@@ -70,10 +70,10 @@ export default function DashboardPage() {
       </div>
       {error && <div className="text-red-500">{error}</div>}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Total Detections" icon={<SmilePlus className="h-4 w-4 text-muted-foreground" />} value={summary ? summary.total : "-"} />
-        <StatCard title="Average Mood" icon={<BarChart3 className="h-4 w-4 text-muted-foreground" />} value={summary ? cap(summary.averageEmotion?.dominant) : "-"} />
-        <StatCard title="Last Detection" icon={<Clock className="h-4 w-4 text-muted-foreground" />} value={summary && summary.lastDetection ? formatDate(summary.lastDetection.timestamp) : "-"} description={summary && summary.lastDetection ? `Terdeteksi: ${formatDate(summary.lastDetection.timestamp)} - ${Object.entries(summary.lastDetection.emotions).reduce((a, [k, v]) => (v as number) > (summary.lastDetection.emotions[a] as number || 0) ? k : a, "neutral")}` : undefined} />
-        <StatCard title="Total Grup Dimasuki" icon={<Users className="h-4 w-4 text-muted-foreground" />} value={userGroups.length} />
+        <StatCard title="Total Deteksi" icon={<SmilePlus className="h-4 w-4 text-muted-foreground" />} value={summary ? summary.total : "-"} />
+        <StatCard title="Rata Rata Emosi" icon={<BarChart3 className="h-4 w-4 text-muted-foreground" />} value={summary ? cap(summary.averageEmotion?.dominant) : "-"} />
+        <StatCard title="Deteksi Terakhir" icon={<Clock className="h-4 w-4 text-muted-foreground" />} value={summary && summary.lastDetection ? formatDate(summary.lastDetection.timestamp) : "-"} />
+        <StatCard title="Total Grup" icon={<Users className="h-4 w-4 text-muted-foreground" />} value={userGroups.length} />
       </div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
         <div className="col-span-4">
@@ -81,13 +81,13 @@ export default function DashboardPage() {
             {summary && summary.recent && summary.recent.length > 0 ? (
               <EmotionTrendLineChart recent={summary.recent} />
             ) : (
-              <p className="text-muted-foreground">Emotion trend chart will appear here</p>
+              <p className="text-muted-foreground">Tren Emosi akan tampil disini</p>
             )}
           </div>
         </div>
         <div className="col-span-3">
           <div className="bg-card rounded-md p-4 h-full">
-            <h3 className="font-semibold mb-2">Recent Activities</h3>
+            <h3 className="font-semibold mb-2">Aktivitas Terkini</h3>
             <RecentActivity activities={summary?.recent || []} />
           </div>
         </div>

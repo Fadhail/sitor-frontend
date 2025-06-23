@@ -37,7 +37,7 @@ export default function ReportsPage() {
           }))
         )
       } catch (err: any) {
-        setError("Failed to fetch detection history")
+        setError("Gagal mengambil riwayat deteksi")
       }
     }
     fetchDetections()
@@ -45,7 +45,7 @@ export default function ReportsPage() {
 
   // Calculate emotion statistics
   const calculateStats = () => {
-    if (emotionHistory.length === 0) return { dominant: "No data", counts: {} }
+    if (emotionHistory.length === 0) return { dominant: "Tidak Ada Data", counts: {} }
     const counts: Record<string, number> = {}
     emotionHistory.forEach((record) => {
       counts[record.emotion] = (counts[record.emotion] || 0) + 1
@@ -65,7 +65,7 @@ export default function ReportsPage() {
   // Export report as CSV
   const exportReport = () => {
     if (emotionHistory.length === 0) return
-    let csvContent = "Timestamp,Emotion,Probability\n"
+    let csvContent = "Timestamp,Emosi,Probabilitas\n"
     emotionHistory.forEach((record) => {
       csvContent += `${record.timestamp},${record.emotion},${record.probability}\n`
     })
@@ -82,8 +82,8 @@ export default function ReportsPage() {
     <div className="w-full max-w-5xl mx-auto px-4 md:px-8 py-8 space-y-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold">SITOR Emotion Reports</h1>
-          <p className="text-muted-foreground">View and analyze your emotion detection history</p>
+          <h1 className="text-2xl font-bold">Laporan Emosi</h1>
+          <p className="text-muted-foreground">Lihat dan analisis riwayat deteksi emosi anda</p>
         </div>
         <Button onClick={exportReport} disabled={emotionHistory.length === 0}>
           <Download className="mr-2 h-4 w-4" />
@@ -95,14 +95,14 @@ export default function ReportsPage() {
       <Tabs defaultValue="daily" className="w-full">
         <div className="flex justify-between items-center">
           <TabsList>
-            <TabsTrigger value="daily">Daily</TabsTrigger>
-            <TabsTrigger value="weekly">Weekly</TabsTrigger>
-            <TabsTrigger value="monthly">Monthly</TabsTrigger>
+            <TabsTrigger value="daily">Harian</TabsTrigger>
+            <TabsTrigger value="weekly">Mingguan</TabsTrigger>
+            <TabsTrigger value="monthly">Bulanan</TabsTrigger>
           </TabsList>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm">
               <Calendar className="mr-2 h-4 w-4" />
-              Select Date
+              Pilih Tanggal
             </Button>
           </div>
         </div>
@@ -116,8 +116,8 @@ export default function ReportsPage() {
             ) : (
               <div className="py-12 text-center">
                 <BarChart3 className="mx-auto h-12 w-12 text-muted-foreground opacity-50" />
-                <h3 className="mt-4 text-lg font-medium">No Data Available</h3>
-                <p className="text-sm text-muted-foreground mt-2">Start detecting emotions to generate reports</p>
+                <h3 className="mt-4 text-lg font-medium">Tidak ada data tersedia</h3>
+                <p className="text-sm text-muted-foreground mt-2">Mulai mendeteksi emosi untuk membuat laporan</p>
               </div>
             )}
           </div>
@@ -132,8 +132,8 @@ export default function ReportsPage() {
             ) : (
               <div className="py-12 text-center">
                 <BarChart3 className="mx-auto h-12 w-12 text-muted-foreground opacity-50" />
-                <h3 className="mt-4 text-lg font-medium">No Data Available</h3>
-                <p className="text-sm text-muted-foreground mt-2">Start detecting emotions to generate reports</p>
+                <h3 className="mt-4 text-lg font-medium">Tidak ada data tersedia</h3>
+                <p className="text-sm text-muted-foreground mt-2">Mulai mendeteksi emosi untuk membuat laporan</p>
               </div>
             )}
           </div>
@@ -148,8 +148,8 @@ export default function ReportsPage() {
             ) : (
               <div className="py-12 text-center">
                 <BarChart3 className="mx-auto h-12 w-12 text-muted-foreground opacity-50" />
-                <h3 className="mt-4 text-lg font-medium">No Data Available</h3>
-                <p className="text-sm text-muted-foreground mt-2">Start detecting emotions to generate reports</p>
+                <h3 className="mt-4 text-lg font-medium">Tidak ada data tersedia</h3>
+                <p className="text-sm text-muted-foreground mt-2">Mulai mendeteksi emosi untuk membuat laporan</p>
               </div>
             )}
           </div>
