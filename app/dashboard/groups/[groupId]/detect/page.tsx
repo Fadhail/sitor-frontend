@@ -74,11 +74,12 @@ export default function DetectPage() {
 
   // Pastikan deteksi berjalan saat isDetecting berubah ke true
   useEffect(() => {
-    if (isDetecting) {
-      detectEmotions();
+    if (isDetecting && isModelLoaded && isCameraOn) {
+      // Tambah delay sedikit untuk memastikan video sudah siap
+      setTimeout(() => detectEmotions(), 300);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDetecting]);
+  }, [isDetecting, isModelLoaded, isCameraOn]);
 
   // Update detectionHistory setiap kali detectionResults berubah
   useEffect(() => {
@@ -352,26 +353,29 @@ export default function DetectPage() {
     if (!video || !canvas || video.videoWidth === 0 || video.videoHeight === 0) {
       // Retry after a short delay if video isn't ready
       if (isDetecting) {
-        setTimeout(() => detectEmotions(), 100)
+        requestAnimationFrame(() => {
+          setTimeout(() => detectEmotions(), 150) // Konsisten dengan delay yang sama
+        })
       }
       return
     }
 
-    // PERBAIKAN: Set canvas dimensions berdasarkan display size video element
+    // PERBAIKAN: Set canvas dimensions berdasarkan display size video element (hanya jika berubah)
     const videoRect = video.getBoundingClientRect()
     const displaySize = { 
       width: video.offsetWidth || videoRect.width, 
       height: video.offsetHeight || videoRect.height 
     }
     
-    // Set canvas size to match video display size
-    canvas.width = displaySize.width
-    canvas.height = displaySize.height
-    canvas.style.width = `${displaySize.width}px`
-    canvas.style.height = `${displaySize.height}px`
-
-    // @ts-expect-error face-api.js is loaded globally from CDN
-    faceapi.matchDimensions(canvas, displaySize)
+    // Set canvas size only if dimensions changed (optimization)
+    if (canvas.width !== displaySize.width || canvas.height !== displaySize.height) {
+      canvas.width = displaySize.width
+      canvas.height = displaySize.height
+      canvas.style.width = `${displaySize.width}px`
+      canvas.style.height = `${displaySize.height}px`
+      // @ts-expect-error face-api.js is loaded globally from CDN
+      faceapi.matchDimensions(canvas, displaySize)
+    }
 
     try {
       // Use single-chain detection for better compatibility
@@ -388,7 +392,7 @@ export default function DetectPage() {
       const ctx = canvas.getContext("2d")
       if (!ctx) return
 
-      // Clear canvas completely
+      // Clear canvas dengan optimasi untuk mengurangi flickering
       ctx.clearRect(0, 0, canvas.width, canvas.height)
 
       if (detections.length > 0) {
@@ -396,7 +400,7 @@ export default function DetectPage() {
         // @ts-expect-error face-api.js is loaded globally from CDN
         const resizedDetections = faceapi.resizeResults(detections, displaySize)
 
-        // Draw only landmark points (anti-flicker, hanya titik, tidak garis)
+        // Draw only landmark points dengan rendering yang optimal
         if (resizedDetections[0] && resizedDetections[0].landmarks) {
           const landmarks = resizedDetections[0].landmarks
           let points = null
@@ -407,22 +411,41 @@ export default function DetectPage() {
           } else if (landmarks.points) {
             points = landmarks.points
           }
-          ctx.save()
-          ctx.globalAlpha = 0.85
-          // --- ANTI FLICKER: gambar landmark di atas frame video, JANGAN clearRect canvas (biarkan background tetap) ---
+          
           if (points && Array.isArray(points)) {
-            // Gambar titik landmark
+            // Optimasi rendering: gunakan path batching untuk performa lebih baik
+            ctx.save()
+            ctx.globalAlpha = 0.95  // Slightly more opaque untuk visibility lebih baik
+            ctx.globalCompositeOperation = 'source-over'
+            ctx.imageSmoothingEnabled = true
+            ctx.imageSmoothingQuality = 'high'
+            
+            // Warna biru polos yang konsisten dan stabil
+            const primaryBlue = '#2563EB'   // blue-600 (lebih gelap untuk visibility)
+            const secondaryBlue = '#3B82F6' // blue-500
+            const pointSize = 1.5  // Sedikit lebih besar untuk visibility
+            
+            // Gambar semua titik utama sekaligus
+            ctx.fillStyle = primaryBlue
+            ctx.beginPath()
             points.forEach((p) => {
-              ctx.beginPath()
-              ctx.arc(p.x, p.y, 2.5, 0, 2 * Math.PI)
-              ctx.fillStyle = '#00FF00'
-              ctx.shadowColor = '#00FF00'
-              ctx.shadowBlur = 4
-              ctx.fill()
-              ctx.shadowBlur = 0
+              ctx.moveTo(p.x + pointSize, p.y)
+              ctx.arc(p.x, p.y, pointSize, 0, 2 * Math.PI)
             })
+            ctx.fill()
+            
+            // Gambar inner points dengan ukuran lebih kecil
+            ctx.fillStyle = secondaryBlue
+            ctx.beginPath()
+            const innerSize = pointSize * 0.5
+            points.forEach((p) => {
+              ctx.moveTo(p.x + innerSize, p.y)
+              ctx.arc(p.x, p.y, innerSize, 0, 2 * Math.PI)
+            })
+            ctx.fill()
+            
+            ctx.restore()
           }
-          ctx.restore()
         }
 
         // Extract and store detection results
@@ -442,9 +465,12 @@ export default function DetectPage() {
       console.error("Error during detection:", err)
     }
 
-    // Retry detection after a short delay
+    // Retry detection dengan interval yang lebih lambat untuk mengurangi flickering
     if (isDetecting) {
-      setTimeout(() => detectEmotions(), 100)
+      // Gunakan requestAnimationFrame untuk rendering yang lebih smooth
+      requestAnimationFrame(() => {
+        setTimeout(() => detectEmotions(), 150) // 150ms untuk balance antara responsiveness dan stability
+      })
     }
   }
 
@@ -547,7 +573,7 @@ export default function DetectPage() {
                 disabled={!isCameraOn}
               >
                 <Download className="mr-2" />
-                Ambil Screenshot
+                Screenshot
               </Button>
             </div>
           </CardContent>
