@@ -21,7 +21,15 @@ export default function CreateGroupPage() {
     try {
       const res = await createGroup({ name, description, securityCode });
       if (res.data && res.data.success) {
-        router.push("/dashboard/groups");
+        // Ambil groupId dari response untuk redirect ke dashboard ketua
+        const groupId = res.data.group?.id || res.data.groupId;
+        if (groupId) {
+          // Redirect langsung ke dashboard ketua grup yang baru dibuat
+          router.push(`/dashboard/groups/${groupId}/leader`);
+        } else {
+          // Fallback jika tidak ada groupId
+          router.push("/dashboard/groups");
+        }
       } else {
         setError(res.data.message || "Gagal membuat grup");
       }

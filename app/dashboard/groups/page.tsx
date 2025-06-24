@@ -81,11 +81,19 @@ export default function GroupsPage() {
 		setAddLoading(true);
 		setAddError("");
 		try {
-			await createGroup(data);
+			const res = await createGroup(data);
 			setShowAddModal(false);
 			setAddLoading(false);
-			// Refresh group list
-			getGroups().then((res) => setGroups(res.data.groups || []));
+			
+			// Ambil groupId dari response untuk redirect ke dashboard ketua
+			const groupId = res.data.group?.id || res.data.groupId;
+			if (groupId) {
+				// Redirect langsung ke dashboard ketua grup yang baru dibuat
+				router.push(`/dashboard/groups/${groupId}/leader`);
+			} else {
+				// Fallback: refresh group list jika tidak ada groupId
+				getGroups().then((res) => setGroups(res.data.groups || []));
+			}
 		} catch (err: any) {
 			setAddError(err?.response?.data?.message || "Gagal membuat grup");
 			setAddLoading(false);

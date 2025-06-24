@@ -476,39 +476,14 @@ export default function DetectPage() {
     link.click();
   }
 
-  // Initial State: Kamera belum aktif
-  if (!isCameraActive) {
-    // Render modal sesi berakhir jika sessionActive === false atau showSessionEndedModal true
-    if (sessionActive === false || showSessionEndedModal) {
-      return (
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="bg-white rounded-2xl shadow-2xl p-10 max-w-xl w-full flex flex-col items-center gap-6">
-            <h2 className="text-2xl font-bold text-red-600 mb-2">Sesi Telah Berakhir</h2>
-            <p className="text-gray-700 text-center">Sesi deteksi emosi pada grup ini telah diakhiri oleh ketua grup. Silakan hubungi ketua untuk memulai sesi baru.</p>
-            <Button className="mt-4 px-6 py-2" onClick={() => window.location.href = '/dashboard'}>Kembali ke Dashboard</Button>
-          </div>
-        </div>
-      );
+  // Auto-activate camera when component loads and models are ready
+  useEffect(() => {
+    if (!isCameraActive && isModelLoaded && sessionActive !== false) {
+      setIsCameraActive(true);
     }
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-full max-w-xl flex flex-col items-center justify-center bg-white rounded-2xl shadow-2xl p-10 gap-6">
-          <Camera className="w-24 h-24 text-gray-300 mb-4" />
-          <h1 className="text-3xl font-extrabold text-gray-900 mb-2">Deteksi Emosi Wajah</h1>
-          <p className="text-gray-500 text-lg text-center mb-4">Aktifkan kamera untuk mulai analisis ekspresi wajah secara real-time.</p>
-          <Button
-            size="lg"
-            className="px-8 py-4 text-lg font-bold"
-            onClick={() => setIsCameraActive(true)}
-          >
-            Aktifkan Kamera
-          </Button>
-        </div>
-      </div>
-    )
-  }
+  }, [isCameraActive, isModelLoaded, sessionActive]);
 
-  // Render modal sesi berakhir jika sessionActive === false atau showSessionEndedModal true
+  // Initial State: Render modal sesi berakhir jika sessionActive === false atau showSessionEndedModal true
   if (sessionActive === false || showSessionEndedModal) {
     console.log('🔴 Rendering modal sesi berakhir:', { sessionActive, showSessionEndedModal });
     return (
@@ -565,16 +540,6 @@ export default function DetectPage() {
               )}
             </div>
             <div className="flex flex-col sm:flex-row gap-2 w-full justify-center mt-2">
-              <Button
-                variant="destructive"
-                onClick={() => {
-                  setIsCameraActive(false);
-                  stopVideo();
-                }}
-                className="px-4 py-2 sm:px-6 sm:py-2 text-sm sm:text-base font-semibold rounded-xl shadow"
-              >
-                Hentikan Kamera
-              </Button>
               <Button
                 variant="outline"
                 onClick={captureScreenshot}

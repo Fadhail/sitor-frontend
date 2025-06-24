@@ -39,8 +39,8 @@ export default function LeaderDashboardPage({ params }: { params: Promise<{ grou
 
   // State untuk modal konfirmasi end session
   const [showEndSessionModal, setShowEndSessionModal] = useState(false);
-  // State untuk modal konfirmasi start session
-  const [showStartSessionModal, setShowStartSessionModal] = useState(false);
+  // State untuk tracking apakah sesi sudah pernah dimulai otomatis
+  const [hasAutoStarted, setHasAutoStarted] = useState(false);
 
   // Polling status kamera & status sesi dengan logika baru
   useEffect(() => {
@@ -131,11 +131,16 @@ export default function LeaderDashboardPage({ params }: { params: Promise<{ grou
       const group = (res.data.groups || []).find((g: any) => g.id === groupId);
       if (group && user && group.leaderId === user.id) {
         setIsLeader(true);
+        // Otomatis mulai sesi ketika ketua mengakses grup (hanya sekali)
+        if (!hasAutoStarted) {
+          setHasAutoStarted(true);
+          handleStartSession();
+        }
       } else {
         setIsLeader(false);
       }
     });
-  }, [groupId, user]);
+  }, [groupId, user, hasAutoStarted]);
 
   useEffect(() => {
     let isMounted = true;
@@ -229,13 +234,6 @@ export default function LeaderDashboardPage({ params }: { params: Promise<{ grou
             onClick={() => setShowEndSessionModal(true)}
           >
             Akhiri Sesi
-          </Button>
-          <Button
-            className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg shadow font-semibold"
-            onClick={() => setShowStartSessionModal(true)}
-            disabled={sessionActive === true}
-          >
-            Mulai Sesi Baru
           </Button>
         </div>
       </div>
@@ -385,22 +383,6 @@ export default function LeaderDashboardPage({ params }: { params: Promise<{ grou
                 await handleEndSession();
                 window.location.href = '/dashboard';
               }} className="px-6 py-2">Akhiri Sesi</Button>
-            </div>
-          </div>
-        </div>
-      )}
-      {/* Modal konfirmasi start session */}
-      {showStartSessionModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full flex flex-col items-center gap-4 animate-fade-in">
-            <h2 className="text-2xl font-bold text-green-600 mb-2">Konfirmasi Mulai Sesi Baru</h2>
-            <p className="text-gray-700 text-center">Apakah Anda yakin ingin memulai sesi baru? Semua anggota harus mengaktifkan kamera ulang untuk deteksi emosi.</p>
-            <div className="flex gap-4 mt-4">
-              <Button variant="outline" onClick={() => setShowStartSessionModal(false)} className="px-6 py-2">Batal</Button>
-              <Button variant="default" onClick={async () => {
-                setShowStartSessionModal(false);
-                await handleStartSession();
-              }} className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white">Mulai Sesi Baru</Button>
             </div>
           </div>
         </div>
