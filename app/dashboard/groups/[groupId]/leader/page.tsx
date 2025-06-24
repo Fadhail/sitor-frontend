@@ -113,15 +113,10 @@ export default function LeaderDashboardPage({ params }: { params: Promise<{ grou
         // alert('Group ID tidak ditemukan.');
         return;
       }
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "https://backend.xeroon.my.id";
-      const res = await fetch(`${backendUrl}/api/groups/${groupId}/end-session`, {
-        method: 'POST',
+      const { api } = await import("@/service/api");
+      const res = await api.post(`/groups/${groupId}/end-session`, {}, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (!res.ok) {
-        // const errMsg = await res.text();
-        // throw new Error(errMsg || 'Gagal mengakhiri sesi.');
-      }
       // alert('Sesi grup telah diakhiri. Semua user akan disconnect.');
       // State akan otomatis update oleh polling
     } catch (err: any) {

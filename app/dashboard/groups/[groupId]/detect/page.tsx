@@ -38,6 +38,15 @@ export default function DetectPage() {
   const [sessionActive, setSessionActive] = useState<boolean | null>(null);
   const [cameraStatusError, setCameraStatusError] = useState<string | null>(null);
 
+  // Log perubahan state penting untuk debugging
+  useEffect(() => {
+    console.log('📊 State update:', { 
+      showSessionEndedModal, 
+      sessionActive, 
+      cameraStatusError: cameraStatusError?.substring(0, 50) + '...' 
+    });
+  }, [showSessionEndedModal, sessionActive, cameraStatusError]);
+
   // Inject face-api.js from CDN if not loaded
   useEffect(() => {
     // @ts-expect-error
@@ -158,39 +167,44 @@ export default function DetectPage() {
       try {
         setCameraStatusError(null);
         const res = await getCameraStatus(groupId);
-        // axios response: res.status, res.data
-        if (res.status === 401) {
+        // Jika berhasil, sesi masih aktif
+        setSessionActive(true);
+        setCameraStatusError(null);
+        const data = res.data;
+        if (Array.isArray(data.statuses) && data.statuses.length === 0 && !notified) {
+          notified = true;
+          setIsCameraActive(false);
+          stopVideo();
+          setShowSessionEndedModal(true);
+        }
+      } catch (err: any) {
+        // Axios melempar error untuk status 4xx/5xx
+        const status = err?.response?.status;
+        
+        if (status === 401) {
           setCameraStatusError('Akses tidak valid. Silakan login ulang.');
           localStorage.removeItem("user");
           localStorage.removeItem("token");
           window.location.href = "/login";
           return;
-        }
-        if (res.status === 404 || res.status === 410) {
+        } else if (status === 404 || status === 410) {
+          // Sesi telah diakhiri oleh ketua
+          console.log('🔴 Sesi diakhiri oleh ketua - Status:', status);
           setSessionActive(false);
           setCameraStatusError('Sesi grup telah diakhiri oleh ketua. Semua user disconnect.');
           if (!notified) {
+            console.log('📢 Menampilkan modal notifikasi sesi berakhir');
             notified = true;
             setIsCameraActive(false);
             stopVideo();
             setShowSessionEndedModal(true);
           }
         } else {
-          setSessionActive(true);
-          setCameraStatusError(null);
-          const data = res.data;
-          if (Array.isArray(data.statuses) && data.statuses.length === 0 && !notified) {
-            notified = true;
-            setIsCameraActive(false);
-            stopVideo();
-            setShowSessionEndedModal(true);
-          }
+          setCameraStatusError('Gagal mengambil status kamera.');
         }
-      } catch (err) {
-        setCameraStatusError('Gagal mengambil status kamera.');
       }
     }
-    interval = setInterval(checkSession, 100);
+    interval = setInterval(checkSession, 3000); // Polling setiap 3 detik
     return () => {
       clearInterval(interval);
       setIsDetecting(false); // hentikan deteksi saat unmount
@@ -469,7 +483,7 @@ export default function DetectPage() {
       return (
         <div className="min-h-screen flex items-center justify-center">
           <div className="bg-white rounded-2xl shadow-2xl p-10 max-w-xl w-full flex flex-col items-center gap-6">
-            <h2 className="text-2xl font-bold text-red-600 mb-2">Sesi Telah Diakhiri</h2>
+            <h2 className="text-2xl font-bold text-red-600 mb-2">Sesi Telah Berakhir</h2>
             <p className="text-gray-700 text-center">Sesi deteksi emosi pada grup ini telah diakhiri oleh ketua grup. Silakan hubungi ketua untuk memulai sesi baru.</p>
             <Button className="mt-4 px-6 py-2" onClick={() => window.location.href = '/dashboard'}>Kembali ke Dashboard</Button>
           </div>
@@ -496,12 +510,21 @@ export default function DetectPage() {
 
   // Render modal sesi berakhir jika sessionActive === false atau showSessionEndedModal true
   if (sessionActive === false || showSessionEndedModal) {
+    console.log('🔴 Rendering modal sesi berakhir:', { sessionActive, showSessionEndedModal });
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="bg-white rounded-2xl shadow-2xl p-10 max-w-xl w-full flex flex-col items-center gap-6">
-          <h2 className="text-2xl font-bold text-red-600 mb-2">Sesi Telah Diakhiri</h2>
+          <h2 className="text-2xl font-bold text-red-600 mb-2">Sesi Telah Berakhir</h2>
           <p className="text-gray-700 text-center">Sesi deteksi emosi pada grup ini telah diakhiri oleh ketua grup. Silakan hubungi ketua untuk memulai sesi baru.</p>
-          <Button className="mt-4 px-6 py-2" onClick={() => window.location.href = '/dashboard'}>Kembali ke Dashboard</Button>
+          <Button 
+            className="mt-4 px-6 py-2" 
+            onClick={() => {
+              console.log('🏠 Kembali ke dashboard dari modal initial');
+              window.location.href = '/dashboard';
+            }}
+          >
+            Kembali ke Dashboard
+          </Button>
         </div>
       </div>
     );
@@ -618,9 +641,17 @@ export default function DetectPage() {
       {showSessionEndedModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full flex flex-col items-center gap-4 animate-fade-in">
-            <h2 className="text-2xl font-bold text-red-600 mb-2">Sesi Telah Diakhiri</h2>
+            <h2 className="text-2xl font-bold text-red-600 mb-2">Sesi Telah Berakhir</h2>
             <p className="text-gray-700 text-center">Sesi deteksi emosi pada grup ini telah diakhiri oleh ketua grup. Silakan hubungi ketua untuk memulai sesi baru.</p>
-            <Button className="mt-4 px-6 py-2" onClick={() => window.location.href = '/dashboard'}>Kembali ke Dashboard</Button>
+            <Button 
+              className="mt-4 px-6 py-2" 
+              onClick={() => {
+                console.log('🏠 Kembali ke dashboard');
+                window.location.href = '/dashboard';
+              }}
+            >
+              Kembali ke Dashboard
+            </Button>
           </div>
         </div>
       )}
