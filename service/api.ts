@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8080/api";
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export const api = axios.create({
   baseURL: API_URL,
@@ -119,7 +119,7 @@ export async function getDetectionHistory(groupId: string) {
 }
 
 export async function predictSVMEmotion(text: string) {
-  const res = await axios.post("http://localhost:8000/predict", { text });
+  const res = await axios.post(process.env.NEXT_PUBLIC_PYTHON_API_URL + "/predict", { text });
   return res.data; // { emotion, confidence }
 }
 
